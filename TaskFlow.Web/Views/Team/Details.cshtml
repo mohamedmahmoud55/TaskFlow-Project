@@ -1,0 +1,34 @@
+@model TaskFlow.Web.Models.TeamDetailsViewModel
+@{
+    ViewData["Title"] = Model.Name;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-2">
+                <li class="breadcrumb-item"><a asp-controller="Workspace" asp-action="Index">My Workspaces</a></li>
+                <li class="breadcrumb-item"><a asp-controller="Workspace" asp-action="Details" asp-route-id="@Model.WorkspaceId">@Model.WorkspaceName</a></li>
+                <li class="breadcrumb-item active" aria-current="page">@Model.Name</li>
+            </ol>
+        </nav>
+        <h1 class="h2 mb-1">@Model.Name</h1>
+        <p class="text-muted mb-0">
+            @(string.IsNullOrWhiteSpace(Model.Description) ? "No description provided." : Model.Description)
+        </p>
+    </div>
+    @if (Model.CurrentUserRole is not null)
+    {
+        <span class="badge text-bg-primary fs-6">@Model.CurrentUserRole</span>
+    }
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="h4 mb-0">Projects</h2>
+    <a asp-controller="Project" asp-action="Index" asp-route-teamId="@Model.Id" asp-route-workspaceId="@Model.WorkspaceId" class="btn btn-outline-primary">View projects</a>
+</div>
+<div class="card shadow-sm">
+    <div class="card-body">
+        <p class="text-muted mb-0">Open this team's projects to view and create project work.</p>
+    </div>
+</div>

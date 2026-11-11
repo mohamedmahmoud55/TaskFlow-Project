@@ -1,0 +1,45 @@
+@model TaskFlow.Web.Models.CreateProjectViewModel
+@{
+    ViewData["Title"] = "Create Project";
+    var teamId = (Guid?)ViewData["TeamId"];
+    var workspaceId = (Guid?)ViewData["WorkspaceId"];
+    var teamName = ViewData["TeamName"] as string;
+}
+
+<div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-controller="Workspace" asp-action="Index">My Workspaces</a></li>
+                <li class="breadcrumb-item"><a asp-controller="Team" asp-action="Details" asp-route-id="@teamId" asp-route-workspaceId="@workspaceId">@teamName</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Create project</li>
+            </ol>
+        </nav>
+        <div class="card shadow-sm">
+            <div class="card-body p-4 p-md-5">
+                <h1 class="h3 mb-4">Create project</h1>
+                <form asp-action="Create" asp-route-teamId="@teamId" asp-route-workspaceId="@workspaceId" method="post">
+                    <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+                    <div class="mb-3">
+                        <label asp-for="Name" class="form-label"></label>
+                        <input asp-for="Name" class="form-control" autocomplete="off" />
+                        <span asp-validation-for="Name" class="text-danger"></span>
+                    </div>
+                    <div class="mb-4">
+                        <label asp-for="Description" class="form-label"></label>
+                        <textarea asp-for="Description" class="form-control" rows="4"></textarea>
+                        <span asp-validation-for="Description" class="text-danger"></span>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2">
+                        <a asp-controller="Project" asp-action="Index" asp-route-teamId="@teamId" asp-route-workspaceId="@workspaceId" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Create project</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

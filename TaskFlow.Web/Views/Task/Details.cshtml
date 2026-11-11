@@ -1,0 +1,203 @@
+﻿
+@model TaskFlow.Services.Tasks.Models.TaskDetails
+@using TaskFlow.Services.Tasks.Assignments.Models
+
+@{
+    ViewData["Title"] = "Task Details";
+}
+
+<div class="container mt-4">
+    <div class="card shadow-sm">
+
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">Task Details</h4>
+
+            <div class="d-flex gap-2">
+                <a asp-action="Edit"
+                   asp-route-id="@Model.Id"
+                   class="btn btn-primary btn-sm">
+                    Edit Task
+                </a>
+
+                <a asp-action="Index"
+                   asp-route-boardColumnId="@Model.BoardColumnId"
+                   class="btn btn-outline-secondary btn-sm">
+                    Back to Tasks
+                </a>
+            </div>
+        </div>
+
+        <div class="card-body">
+
+            @* Success and Error Messages *@
+            @if (TempData["Success"] != null)
+            {
+                <div class="alert alert-success">
+                    @TempData["Success"]
+                </div>
+            }
+
+            @if (TempData["Error"] != null)
+            {
+                <div class="alert alert-danger">
+                    @TempData["Error"]
+                </div>
+            }
+
+            @* Task Information *@
+            <h3>@Model.Title</h3>
+
+            <hr />
+
+            <dl class="row">
+
+                <dt class="col-sm-3">Description</dt>
+                <dd class="col-sm-9">
+                    @(string.IsNullOrWhiteSpace(Model.Description)
+                        ? "No description provided"
+                        : Model.Description)
+                </dd>
+
+                <dt class="col-sm-3">Priority</dt>
+                <dd class="col-sm-9">@Model.Priority</dd>
+
+                <dt class="col-sm-3">Board Column</dt>
+                <dd class="col-sm-9">@Model.ColumnName</dd>
+
+                <dt class="col-sm-3">Start Date</dt>
+                <dd class="col-sm-9">
+                    @(Model.StartDate?.ToShortDateString() ?? "Not specified")
+                </dd>
+
+                <dt class="col-sm-3">Due Date</dt>
+                <dd class="col-sm-9">
+                    @(Model.DueDate?.ToShortDateString() ?? "Not specified")
+                </dd>
+
+                <dt class="col-sm-3">Estimated Duration</dt>
+                <dd class="col-sm-9">
+                    @(Model.EstimatedMinutes.HasValue
+                        ? $"{Model.EstimatedMinutes} minutes"
+                        : "Not specified")
+                </dd>
+
+                <dt class="col-sm-3">Position</dt>
+                <dd class="col-sm-9">@Model.Position</dd>
+
+                <dt class="col-sm-3">Created At</dt>
+                <dd class="col-sm-9">
+                    @Model.CreatedAt.ToLocalTime().ToString("g")
+                </dd>
+
+                <dt class="col-sm-3">Last Updated</dt>
+                <dd class="col-sm-9">
+                    @(Model.UpdatedAt?.ToLocalTime().ToString("g") ?? "Never")
+                </dd>
+
+                <dt class="col-sm-3">Completion</dt>
+                <dd class="col-sm-9">
+                    @if (Model.IsCompleted)
+                    {
+                        <span class="badge bg-success">Completed</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">Not Completed</span>
+                    }
+                </dd>
+
+                <dt class="col-sm-3">Archived</dt>
+                <dd class="col-sm-9">
+                    @(Model.IsArchived ? "Yes" : "No")
+                </dd>
+
+            </dl>
+
+            @if (Model.CompletedAt.HasValue)
+            {
+                <p class="text-muted">
+                    Completed on:
+                    @Model.CompletedAt.Value.ToLocalTime().ToString("g")
+                </p>
+            }
+
+            @* Task Assignments *@
+            @{
+                var assignments =
+                    ViewBag.AssignmentDetails as TaskAssignmentDetails;
+            }
+
+            @if (assignments != null)
+            {
+                <hr />
+
+                <h4>Task Assignments</h4>
+
+                @if (assignments.Members.Count == 0)
+                {
+                    <p>No eligible project members are available.</p>
+                }
+                else if (assignments.CanManageAssignments)
+                {
+                    <form asp-controller="Task"
+                          asp-action="UpdateAssignees"
+                          method="post">
+
+                        @Html.AntiForgeryToken()
+
+                        <input type="hidden"
+                               name="TaskId"
+                               value="@assignments.TaskId" />
+
+                        <p>Select the members assigned to this task:</p>
+
+                        @foreach (var member in assignments.Members)
+                        {
+                            <div class="form-check mb-2">
+
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       name="SelectedUserIds"
+                                       value="@member.UserId"
+                                       id="member_@member.UserId"
+                                       checked="@member.IsAssigned" />
+
+                                <label class="form-check-label"
+                                       for="member_@member.UserId">
+
+                                    @member.DisplayName
+
+                                    @if (!string.IsNullOrEmpty(member.Email))
+                                    {
+                                        <small class="text-muted">
+                                            (@member.Email)
+                                        </small>
+                                    }
+
+                                </label>
+                            </div>
+                        }
+
+                        <button type="submit"
+                                class="btn btn-primary mt-2">
+                            Save Assignments
+                        </button>
+
+                    </form>
+                }
+                else
+                {
+                    <h6>Assigned Members</h6>
+
+                    <ul>
+                        @foreach (var member in assignments.Members.Where(m => m.IsAssigned))
+                        {
+                            <li>@member.DisplayName</li>
+                        }
+                    </ul>
+                }
+            }
+
+        </div>
+    </div>
+</div>

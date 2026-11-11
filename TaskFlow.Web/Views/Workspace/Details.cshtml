@@ -1,0 +1,35 @@
+@model TaskFlow.Web.Models.WorkspaceDetailsViewModel
+@{
+    ViewData["Title"] = Model.Name;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+        <a asp-action="Index" class="text-decoration-none">&larr; My Workspaces</a>
+        <h1 class="h2 mt-2 mb-1">@Model.Name</h1>
+        <p class="text-muted mb-0">
+            @(string.IsNullOrWhiteSpace(Model.Description) ? "No description provided." : Model.Description)
+        </p>
+    </div>
+    <span class="badge text-bg-primary fs-6">@Model.CurrentUserRole</span>
+</div>
+
+<div class="row g-4">
+    <div class="col-12 col-md-6">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <h2 class="h5">Teams</h2>
+                <p class="text-muted">Organize people and projects into teams.</p>
+                <a asp-controller="Team" asp-action="Index" asp-route-workspaceId="@Model.Id" class="btn btn-outline-primary">View teams</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <h2 class="h5">Projects</h2>
+                <p class="text-muted mb-0">Projects will be available in a future TaskFlow step.</p>
+            </div>
+        </div>
+    </div>
+</div>
