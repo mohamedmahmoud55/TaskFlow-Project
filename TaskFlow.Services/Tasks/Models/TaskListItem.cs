@@ -17,4 +17,9 @@ public class TaskListItem
     public bool IsCompleted { get; set; }
 
     public bool IsArchived { get; set; }
+
+    public string CreatedByUserId { get; set; } = string.Empty;
+
+    // Whether the current user may edit, archive or delete this task.
+    public bool CanEdit { get; set; }
 }

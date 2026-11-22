@@ -1,8 +1,67 @@
 ﻿@{
-    ViewData["Title"] = "Home Page";
+    ViewData["Title"] = "Home";
+    var isSignedIn = User.Identity?.IsAuthenticated == true;
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
-</div>
+<section class="text-center py-5">
+    <h1 class="display-5 fw-bold mb-3">Organize work. Track progress. Ship together.</h1>
+
+    <p class="lead text-muted col-lg-8 mx-auto mb-4">
+        TaskFlow brings your workspaces, teams, projects and Kanban boards into one place,
+        with clear roles so everyone sees and does what they should.
+    </p>
+
+    @if (isSignedIn)
+    {
+        <a asp-controller="Workspace" asp-action="Index" class="btn btn-primary btn-lg me-2">
+            <i class="bi bi-grid"></i> My Workspaces
+        </a>
+        <a asp-controller="Project" asp-action="MyProjects" class="btn btn-outline-secondary btn-lg">
+            <i class="bi bi-folder2-open"></i> My Projects
+        </a>
+    }
+    else
+    {
+        <a asp-controller="Account" asp-action="Register" class="btn btn-primary btn-lg me-2">
+            Create an account
+        </a>
+        <a asp-controller="Account" asp-action="Login" class="btn btn-outline-secondary btn-lg">
+            Log in
+        </a>
+    }
+</section>
+
+<section class="row g-4 pb-5">
+    <div class="col-12 col-md-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <h2 class="h5"><i class="bi bi-diagram-3 text-primary"></i> Workspaces and teams</h2>
+                <p class="text-muted mb-0">
+                    Group people into workspaces and teams, and keep each team's projects together.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <h2 class="h5"><i class="bi bi-people text-primary"></i> Projects with roles</h2>
+                <p class="text-muted mb-0">
+                    Managers run the project, Members do the work and Viewers follow along.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <h2 class="h5"><i class="bi bi-kanban text-primary"></i> Boards and tasks</h2>
+                <p class="text-muted mb-0">
+                    Plan work on Kanban boards with your own columns, then create, edit and assign tasks.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>

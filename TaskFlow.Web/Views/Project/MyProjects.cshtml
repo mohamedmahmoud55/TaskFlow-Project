@@ -1,0 +1,135 @@
+﻿@model TaskFlow.Web.Models.MyProjectsViewModel
+
+@{
+    var title = Model.ShowingArchived ? "Archived Projects" : "My Projects";
+    ViewData["Title"] = title;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+    <div>
+        <h1 class="h2 mb-1">@title</h1>
+        <p class="text-muted mb-0">
+            @(Model.ShowingArchived
+                ? "Archived projects you can restore. Nobody else can see them."
+                : "Every project you can open, across all your workspaces.")
+        </p>
+    </div>
+
+    <ul class="nav nav-pills">
+        <li class="nav-item">
+            <a class="nav-link @(Model.ShowingArchived ? "" : "active")"
+               asp-action="MyProjects"
+               asp-route-archived="false">Active</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(Model.ShowingArchived ? "active" : "")"
+               asp-action="MyProjects"
+               asp-route-archived="true">Archived</a>
+        </li>
+    </ul>
+</div>
+
+@if (TempData["Success"] is not null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (TempData["Error"] is not null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (Model.Projects.Count == 0)
+{
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5">
+            @if (Model.ShowingArchived)
+            {
+                <h2 class="h4">No archived projects</h2>
+                <p class="text-muted mb-0">
+                    Projects you archive will appear here, so you can restore them.
+                </p>
+            }
+            else
+            {
+                <h2 class="h4">No projects yet</h2>
+                <p class="text-muted">
+                    You are not part of any project yet. Create one from a team,
+                    or ask a project manager to add you.
+                </p>
+                <a asp-controller="Workspace" asp-action="Index" class="btn btn-primary">
+                    Go to My Workspaces
+                </a>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Project</th>
+                        <th scope="col">Team</th>
+                        <th scope="col">Workspace</th>
+                        <th scope="col">Your role</th>
+                        <th scope="col">Status</th>
+                        <th scope="col"><span class="visually-hidden">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var project in Model.Projects)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@project.Name</td>
+                            <td>@project.TeamName</td>
+                            <td>@project.WorkspaceName</td>
+                            <td>
+                                @if (project.CurrentUserRole is not null)
+                                {
+                                    <span class="badge text-bg-primary">@project.CurrentUserRole</span>
+                                }
+                                else
+                                {
+                                    <span class="badge text-bg-success">Workspace Admin</span>
+                                }
+                            </td>
+                            <td><span class="badge text-bg-secondary">@project.Status</span></td>
+                            <td class="text-end">
+                                @if (Model.ShowingArchived)
+                                {
+                                    <form asp-action="Restore" method="post">
+                                        @Html.AntiForgeryToken()
+
+                                        <input type="hidden" name="ProjectId" value="@project.Id" />
+
+                                        <button type="submit" class="btn btn-outline-primary btn-sm">
+                                            <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                            Restore
+                                        </button>
+                                    </form>
+                                }
+                                else
+                                {
+                                    <a asp-action="Details"
+                                       asp-route-id="@project.Id"
+                                       class="btn btn-outline-primary btn-sm">
+                                        Open
+                                    </a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

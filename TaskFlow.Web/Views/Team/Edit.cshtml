@@ -1,0 +1,41 @@
+﻿@model TaskFlow.Web.Models.EditTeamViewModel
+@{
+    ViewData["Title"] = "Edit Team";
+}
+
+<div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+        @await Component.InvokeAsync("Breadcrumbs", new { teamId = Model.Id, current = "Edit team" })
+        <div class="card shadow-sm">
+            <div class="card-body p-4 p-md-5">
+                <h1 class="h3 mb-4">Edit team</h1>
+                <form asp-action="Edit" method="post">
+                    <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+                    <input type="hidden" asp-for="Id" />
+                    <input type="hidden" asp-for="WorkspaceId" />
+
+                    <div class="mb-3">
+                        <label asp-for="Name" class="form-label"></label>
+                        <input asp-for="Name" class="form-control" autocomplete="off" />
+                        <span asp-validation-for="Name" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-4">
+                        <label asp-for="Description" class="form-label"></label>
+                        <textarea asp-for="Description" class="form-control" rows="4"></textarea>
+                        <span asp-validation-for="Description" class="text-danger"></span>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a asp-action="Details" asp-route-id="@Model.Id" asp-route-workspaceId="@Model.WorkspaceId" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Save changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

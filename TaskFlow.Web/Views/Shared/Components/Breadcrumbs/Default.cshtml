@@ -1,0 +1,21 @@
+﻿@model IReadOnlyList<TaskFlow.Web.ViewComponents.BreadcrumbItem>
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-3">
+        @foreach (var crumb in Model)
+        {
+            if (crumb.IsCurrent)
+            {
+                <li class="breadcrumb-item active" aria-current="page">@crumb.Text</li>
+            }
+            else if (crumb.Url is not null)
+            {
+                <li class="breadcrumb-item"><a href="@crumb.Url">@crumb.Text</a></li>
+            }
+            else
+            {
+                <li class="breadcrumb-item">@crumb.Text</li>
+            }
+        }
+    </ol>
+</nav>

@@ -10,6 +10,8 @@ public class TaskDetails
 
     public Guid BoardId { get; set; }
 
+    public Guid ProjectId { get; set; }
+
     public string CreatedByUserId { get; set; } = string.Empty;
 
     public string Title { get; set; } = string.Empty;
@@ -37,4 +39,7 @@ public class TaskDetails
     public string ColumnName { get; set; } = string.Empty;
 
     public bool IsCompleted { get; set; }
+
+    // Whether the current user may edit, archive or delete this task.
+    public bool CanEdit { get; set; }
 }

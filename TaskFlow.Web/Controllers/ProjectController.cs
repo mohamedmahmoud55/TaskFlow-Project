@@ -24,6 +24,25 @@ public sealed class ProjectController : Controller
     }
 
     [HttpGet]
+    public async Task<IActionResult> MyProjects(bool archived = false)
+    {
+        var userId = GetCurrentUserId();
+
+        if (userId is null)
+            return Challenge();
+
+        var projects = archived
+            ? await _projectService.GetMyArchivedProjectsAsync(userId)
+            : await _projectService.GetMyProjectsAsync(userId);
+
+        return View(new MyProjectsViewModel
+        {
+            ShowingArchived = archived,
+            Projects = projects
+        });
+    }
+
+    [HttpGet]
     public async Task<IActionResult> Index(Guid teamId, Guid? workspaceId = null)
     {
         var userId = GetCurrentUserId();
@@ -136,6 +155,18 @@ public sealed class ProjectController : Controller
                 project.Id,
                 userId);
 
+        var canManageProject =
+            await _projectService.CanManageProjectAsync(
+                project.Id,
+                userId);
+
+        // A guest added to just this project cannot open its team page.
+        var canOpenTeam =
+            await _teamService.GetTeamAsync(
+                project.TeamId,
+                project.WorkspaceId,
+                userId) is not null;
+
         return View(new ProjectDetailsViewModel
         {
             Id = project.Id,
@@ -148,8 +179,164 @@ public sealed class ProjectController : Controller
             Status = project.Status,
             CurrentUserRole = project.CurrentUserRole,
             CanManageMembers = canManageMembers,
+            CanManageProject = canManageProject,
+            CanOpenTeam = canOpenTeam,
             Members = members
         });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Edit(Guid id)
+    {
+        var userId = GetCurrentUserId();
+
+        if (userId is null)
+            return Challenge();
+
+        var project = await _projectService.GetProjectAsync(id, null, userId);
+
+        if (project is null)
+            return NotFound();
+
+        if (!await _projectService.CanManageProjectAsync(id, userId))
+            return Forbid();
+
+        return View(new EditProjectViewModel
+        {
+            Id = project.Id,
+            Name = project.Name,
+            Description = project.Description
+        });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(EditProjectViewModel model)
+    {
+        var userId = GetCurrentUserId();
+
+        if (userId is null)
+            return Challenge();
+
+        if (!ModelState.IsValid)
+            return View(model);
+
+        var result = await _projectService.UpdateProjectAsync(
+            model.Id,
+            userId,
+            model.Name,
+            model.Description);
+
+        if (!result.Succeeded)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                result.Error ?? "The project could not be updated.");
+
+            return View(model);
+        }
+
+        TempData["Success"] = "Project updated successfully.";
+
+        return RedirectToAction(nameof(Details), new { id = model.Id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateStatus(UpdateProjectStatusViewModel model)
+    {
+        var userId = GetCurrentUserId();
+
+        if (userId is null)
+            return Challenge();
+
+        if (!ModelState.IsValid)
+        {
+            TempData["Error"] = "Please choose a valid project status.";
+
+            return RedirectToAction(nameof(Details), new { id = model.ProjectId });
+        }
+
+        var result = await _projectService.UpdateProjectStatusAsync(
+            model.ProjectId,
+            userId,
+            model.Status);
+
+        if (result.Succeeded)
+        {
+            TempData["Success"] = "Project status updated successfully.";
+        }
+        else
+        {
+            TempData["Error"] = result.Error ?? "Unable to update the project status.";
+        }
+
+        return RedirectToAction(nameof(Details), new { id = model.ProjectId });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Archive(ArchiveProjectViewModel model)
+    {
+        var userId = GetCurrentUserId();
+
+        if (userId is null)
+            return Challenge();
+
+        if (!ModelState.IsValid)
+        {
+            TempData["Error"] = "Invalid project information.";
+
+            return RedirectToAction(nameof(MyProjects));
+        }
+
+        var result = await _projectService.ArchiveProjectAsync(
+            model.ProjectId,
+            userId);
+
+        if (!result.Succeeded)
+        {
+            TempData["Error"] = result.Error ?? "Unable to archive the project.";
+
+            return RedirectToAction(nameof(Details), new { id = model.ProjectId });
+        }
+
+        TempData["Success"] =
+            "Project archived. A manager can restore it from My Projects, under Archived.";
+
+        return RedirectToAction(nameof(MyProjects));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Restore(RestoreProjectViewModel model)
+    {
+        var userId = GetCurrentUserId();
+
+        if (userId is null)
+            return Challenge();
+
+        if (!ModelState.IsValid)
+        {
+            TempData["Error"] = "Invalid project information.";
+
+            return RedirectToAction(nameof(MyProjects), new { archived = true });
+        }
+
+        var result = await _projectService.RestoreProjectAsync(
+            model.ProjectId,
+            userId);
+
+        if (!result.Succeeded)
+        {
+            TempData["Error"] = result.Error ?? "Unable to restore the project.";
+
+            return RedirectToAction(nameof(MyProjects), new { archived = true });
+        }
+
+        TempData["Success"] = "Project restored successfully.";
+
+        return RedirectToAction(nameof(Details), new { id = model.ProjectId });
     }
 
     // Add a member to the project.

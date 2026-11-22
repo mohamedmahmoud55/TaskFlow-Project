@@ -10,4 +10,8 @@ public sealed class TeamListViewModel
 
     public IReadOnlyList<TeamListItem> Teams { get; init; }
         = Array.Empty<TeamListItem>();
+
+    // Archived teams the user can restore (workspace Owners and Admins only).
+    public IReadOnlyList<TeamListItem> ArchivedTeams { get; init; }
+        = Array.Empty<TeamListItem>();
 }

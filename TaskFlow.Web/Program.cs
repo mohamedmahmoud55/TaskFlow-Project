@@ -69,6 +69,7 @@ namespace TaskFlow.Web
             builder.Services.ConfigureApplicationCookie(options =>
             {
                 options.LoginPath = "/Account/Login";
+                options.AccessDeniedPath = "/Home/AccessDenied";
                 options.SlidingExpiration = true;
             });
             // Add MVC services
@@ -82,6 +83,9 @@ namespace TaskFlow.Web
                 app.UseExceptionHandler("/Home/Error");
                 app.UseHsts();
             }
+
+            // Friendly pages for 404 and 403 responses that have no body.
+            app.UseStatusCodePagesWithReExecute("/Home/Status", "?code={0}");
 
             app.UseHttpsRedirection();
             app.UseRouting();

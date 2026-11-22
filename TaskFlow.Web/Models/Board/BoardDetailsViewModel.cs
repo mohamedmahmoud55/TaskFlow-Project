@@ -26,4 +26,9 @@ public class BoardDetailsViewModel
 
     public Dictionary<Guid, IReadOnlyList<TaskListItem>> TasksByColumn { get; set; }
         = new();
+
+    // The columns the current user may add tasks to.
+    public HashSet<Guid> ColumnsOpenToNewTasks { get; set; } = new();
+
+    public bool CanAddTask(Guid columnId) => ColumnsOpenToNewTasks.Contains(columnId);
 }

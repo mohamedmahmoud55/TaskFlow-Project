@@ -78,6 +78,55 @@ public sealed class ProjectService : IProjectService
             .ToListAsync();
     }
 
+    public async Task<IReadOnlyList<MyProjectItem>> GetMyProjectsAsync(string userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Array.Empty<MyProjectItem>();
+        }
+
+        return await ToMyProjectItemsAsync(
+            _dbContext.Projects.ReadableBy(userId),
+            userId);
+    }
+
+    public async Task<IReadOnlyList<MyProjectItem>> GetMyArchivedProjectsAsync(string userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Array.Empty<MyProjectItem>();
+        }
+
+        return await ToMyProjectItemsAsync(
+            _dbContext.Projects.RestorableBy(userId),
+            userId);
+    }
+
+    private static async Task<IReadOnlyList<MyProjectItem>> ToMyProjectItemsAsync(
+        IQueryable<Project> projects,
+        string userId)
+    {
+        return await projects
+            .AsNoTracking()
+            .OrderBy(project => project.Team.Workspace.Name)
+            .ThenBy(project => project.Team.Name)
+            .ThenBy(project => project.Name)
+            .Select(project => new MyProjectItem(
+                project.Id,
+                project.Name,
+                project.Status,
+                project.TeamId,
+                project.Team.Name,
+                project.Team.WorkspaceId,
+                project.Team.Workspace.Name,
+                project.Members
+                    .Where(member =>
+                        member.UserId == userId && member.IsActive)
+                    .Select(member => (ProjectRole?)member.Role)
+                    .FirstOrDefault()))
+            .ToListAsync();
+    }
+
     public async Task<ProjectDetails?> GetProjectAsync(
         Guid projectId,
         Guid? expectedTeamId,
@@ -144,22 +193,15 @@ public sealed class ProjectService : IProjectService
                 "A valid team and authenticated user are required.");
         }
 
-        var trimmedName = name.Trim();
+        var validationError = ValidateProjectInput(
+            name,
+            description,
+            out var trimmedName,
+            out var normalizedDescription);
 
-        if (trimmedName.Length == 0 || trimmedName.Length > 200)
+        if (validationError is not null)
         {
-            return ProjectCreationResult.Failure(
-                "Project name must be between 1 and 200 characters.");
-        }
-
-        var normalizedDescription = string.IsNullOrWhiteSpace(description)
-            ? null
-            : description.Trim();
-
-        if (normalizedDescription?.Length > 2000)
-        {
-            return ProjectCreationResult.Failure(
-                "Project description cannot exceed 2000 characters.");
+            return ProjectCreationResult.Failure(validationError);
         }
 
         var teamQuery = _dbContext.Teams
@@ -550,5 +592,195 @@ public sealed class ProjectService : IProjectService
             return false;
 
         return await CanManageMembersAsync(project, userId);
+    }
+
+    // ---------------------------------------------------------
+    // Edit, status and archive
+    //
+    // Project Managers and workspace Owners and Admins can edit a project,
+    // change its status, archive it and later restore it. An archived
+    // project is hidden from everyone, with its boards and tasks, because
+    // every access rule requires a project to be unarchived.
+    // ---------------------------------------------------------
+
+    public async Task<bool> CanManageProjectAsync(
+        Guid projectId,
+        string userId)
+    {
+        if (projectId == Guid.Empty ||
+            string.IsNullOrWhiteSpace(userId))
+        {
+            return false;
+        }
+
+        return await _dbContext.Projects
+            .ManageableBy(userId)
+            .AnyAsync(project => project.Id == projectId);
+    }
+
+    public async Task<ProjectOperationResult> UpdateProjectAsync(
+        Guid projectId,
+        string userId,
+        string name,
+        string? description)
+    {
+        var (project, error) = await LoadManageableProjectAsync(projectId, userId);
+
+        if (project is null)
+        {
+            return ProjectOperationResult.Failure(error ?? "Project not found.");
+        }
+
+        var validationError = ValidateProjectInput(
+            name,
+            description,
+            out var trimmedName,
+            out var normalizedDescription);
+
+        if (validationError is not null)
+        {
+            return ProjectOperationResult.Failure(validationError);
+        }
+
+        project.Name = trimmedName;
+        project.Description = normalizedDescription;
+        project.UpdatedAt = DateTime.UtcNow;
+
+        return await SaveAsync("The project could not be updated.");
+    }
+
+    public async Task<ProjectOperationResult> UpdateProjectStatusAsync(
+        Guid projectId,
+        string userId,
+        ProjectStatus status)
+    {
+        var (project, error) = await LoadManageableProjectAsync(projectId, userId);
+
+        if (project is null)
+        {
+            return ProjectOperationResult.Failure(error ?? "Project not found.");
+        }
+
+        if (!Enum.IsDefined(status))
+        {
+            return ProjectOperationResult.Failure("Invalid project status.");
+        }
+
+        project.Status = status;
+        project.UpdatedAt = DateTime.UtcNow;
+
+        return await SaveAsync("The project status could not be updated.");
+    }
+
+    public async Task<ProjectOperationResult> ArchiveProjectAsync(
+        Guid projectId,
+        string userId)
+    {
+        var (project, error) = await LoadManageableProjectAsync(projectId, userId);
+
+        if (project is null)
+        {
+            return ProjectOperationResult.Failure(error ?? "Project not found.");
+        }
+
+        project.IsArchived = true;
+        project.UpdatedAt = DateTime.UtcNow;
+
+        return await SaveAsync("The project could not be archived.");
+    }
+
+    public async Task<ProjectOperationResult> RestoreProjectAsync(
+        Guid projectId,
+        string userId)
+    {
+        if (projectId == Guid.Empty ||
+            string.IsNullOrWhiteSpace(userId))
+        {
+            return ProjectOperationResult.Failure("Archived project not found.");
+        }
+
+        var project = await _dbContext.Projects
+            .RestorableBy(userId)
+            .FirstOrDefaultAsync(candidate => candidate.Id == projectId);
+
+        if (project is null)
+        {
+            return ProjectOperationResult.Failure("Archived project not found.");
+        }
+
+        project.IsArchived = false;
+        project.UpdatedAt = DateTime.UtcNow;
+
+        return await SaveAsync("The project could not be restored.");
+    }
+
+    // Loads a project the user may manage, or says why not: people who can
+    // see the project are told they lack permission; everyone else is told
+    // it does not exist.
+    private async Task<(Project? Project, string? Error)> LoadManageableProjectAsync(
+        Guid projectId,
+        string userId)
+    {
+        if (projectId == Guid.Empty ||
+            string.IsNullOrWhiteSpace(userId))
+        {
+            return (null, "Project not found.");
+        }
+
+        var project = await _dbContext.Projects
+            .ManageableBy(userId)
+            .FirstOrDefaultAsync(candidate => candidate.Id == projectId);
+
+        if (project is not null)
+        {
+            return (project, null);
+        }
+
+        var canRead = await _dbContext.Projects
+            .ReadableBy(userId)
+            .AnyAsync(candidate => candidate.Id == projectId);
+
+        return (null, canRead
+            ? "You do not have permission to change this project."
+            : "Project not found.");
+    }
+
+    private async Task<ProjectOperationResult> SaveAsync(string failureMessage)
+    {
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+
+            return ProjectOperationResult.Success();
+        }
+        catch (DbUpdateException)
+        {
+            return ProjectOperationResult.Failure(failureMessage);
+        }
+    }
+
+    private static string? ValidateProjectInput(
+        string? name,
+        string? description,
+        out string trimmedName,
+        out string? normalizedDescription)
+    {
+        trimmedName = name?.Trim() ?? string.Empty;
+
+        normalizedDescription = string.IsNullOrWhiteSpace(description)
+            ? null
+            : description.Trim();
+
+        if (trimmedName.Length == 0 || trimmedName.Length > 200)
+        {
+            return "Project name must be between 1 and 200 characters.";
+        }
+
+        if (normalizedDescription?.Length > 2000)
+        {
+            return "Project description cannot exceed 2000 characters.";
+        }
+
+        return null;
     }
 }

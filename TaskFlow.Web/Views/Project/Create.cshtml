@@ -8,13 +8,7 @@
 
 <div class="row justify-content-center">
     <div class="col-12 col-md-8 col-lg-6">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a asp-controller="Workspace" asp-action="Index">My Workspaces</a></li>
-                <li class="breadcrumb-item"><a asp-controller="Team" asp-action="Details" asp-route-id="@teamId" asp-route-workspaceId="@workspaceId">@teamName</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Create project</li>
-            </ol>
-        </nav>
+        @await Component.InvokeAsync("Breadcrumbs", new { teamId, current = "Create project" })
         <div class="card shadow-sm">
             <div class="card-body p-4 p-md-5">
                 <h1 class="h3 mb-4">Create project</h1>

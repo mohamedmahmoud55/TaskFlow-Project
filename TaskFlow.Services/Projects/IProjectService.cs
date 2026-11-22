@@ -10,6 +10,13 @@ public interface IProjectService
         Guid? expectedWorkspaceId,
         string userId);
 
+    // Every project the user can open, across all workspaces.
+    Task<IReadOnlyList<MyProjectItem>> GetMyProjectsAsync(string userId);
+
+    // Archived projects the user could restore (project Managers and
+    // workspace Owners and Admins).
+    Task<IReadOnlyList<MyProjectItem>> GetMyArchivedProjectsAsync(string userId);
+
     Task<ProjectDetails?> GetProjectAsync(
         Guid projectId,
         Guid? expectedTeamId,
@@ -46,5 +53,30 @@ public interface IProjectService
     Guid projectId,
     string userId);
 
+    // Whether the user may edit, change the status of, or archive the project.
+    Task<bool> CanManageProjectAsync(
+        Guid projectId,
+        string userId);
+
+    Task<ProjectOperationResult> UpdateProjectAsync(
+        Guid projectId,
+        string userId,
+        string name,
+        string? description);
+
+    Task<ProjectOperationResult> UpdateProjectStatusAsync(
+        Guid projectId,
+        string userId,
+        ProjectStatus status);
+
+    // Hides the project (with its boards and tasks) from everyone until it
+    // is restored.
+    Task<ProjectOperationResult> ArchiveProjectAsync(
+        Guid projectId,
+        string userId);
+
+    Task<ProjectOperationResult> RestoreProjectAsync(
+        Guid projectId,
+        string userId);
 }
 

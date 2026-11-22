@@ -1,23 +1,73 @@
-@model TaskFlow.Web.Models.WorkspaceListViewModel
+﻿@model TaskFlow.Web.Models.WorkspaceListViewModel
 @{
-    ViewData["Title"] = "My Workspaces";
+    var title = Model.ShowingArchived ? "Archived Workspaces" : "My Workspaces";
+    ViewData["Title"] = title;
 }
 
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
     <div>
-        <h1 class="h2 mb-1">My Workspaces</h1>
-        <p class="text-muted mb-0">Workspaces where you are an active member.</p>
+        <h1 class="h2 mb-1">@title</h1>
+        <p class="text-muted mb-0">
+            @(Model.ShowingArchived
+                ? "Archived workspaces you own and can restore. Nobody else can see them."
+                : "Workspaces where you are an active member.")
+        </p>
     </div>
-    <a asp-action="Create" class="btn btn-primary">Create workspace</a>
+
+    <div class="d-flex flex-wrap align-items-center gap-3">
+        <ul class="nav nav-pills">
+            <li class="nav-item">
+                <a class="nav-link @(Model.ShowingArchived ? "" : "active")"
+                   asp-action="Index"
+                   asp-route-archived="false">Active</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(Model.ShowingArchived ? "active" : "")"
+                   asp-action="Index"
+                   asp-route-archived="true">Archived</a>
+            </li>
+        </ul>
+
+        @if (!Model.ShowingArchived)
+        {
+            <a asp-action="Create" class="btn btn-primary">Create workspace</a>
+        }
+    </div>
 </div>
+
+@if (TempData["Success"] is not null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (TempData["Error"] is not null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
 
 @if (Model.Workspaces.Count == 0)
 {
     <div class="card border-0 shadow-sm">
         <div class="card-body text-center py-5">
-            <h2 class="h4">No workspaces yet</h2>
-            <p class="text-muted">Create your first workspace to start organizing your work.</p>
-            <a asp-action="Create" class="btn btn-primary">Create workspace</a>
+            @if (Model.ShowingArchived)
+            {
+                <h2 class="h4">No archived workspaces</h2>
+                <p class="text-muted mb-0">
+                    Workspaces you archive will appear here, so you can restore them.
+                </p>
+            }
+            else
+            {
+                <h2 class="h4">No workspaces yet</h2>
+                <p class="text-muted">Create your first workspace to start organizing your work.</p>
+                <a asp-action="Create" class="btn btn-primary">Create workspace</a>
+            }
         </div>
     </div>
 }
@@ -35,7 +85,24 @@ else
                         </p>
                         <div class="d-flex justify-content-between align-items-center">
                             <span class="badge text-bg-secondary">@workspace.Role</span>
-                            <a asp-action="Details" asp-route-id="@workspace.Id" class="btn btn-outline-primary btn-sm">Open</a>
+
+                            @if (Model.ShowingArchived)
+                            {
+                                <form asp-action="Restore" method="post">
+                                    @Html.AntiForgeryToken()
+
+                                    <input type="hidden" name="WorkspaceId" value="@workspace.Id" />
+
+                                    <button type="submit" class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                        Restore
+                                    </button>
+                                </form>
+                            }
+                            else
+                            {
+                                <a asp-action="Details" asp-route-id="@workspace.Id" class="btn btn-outline-primary btn-sm">Open</a>
+                            }
                         </div>
                     </div>
                 </div>

@@ -15,6 +15,17 @@ public interface ITaskService
         Guid? expectedBoardColumnId,
         string userId);
 
+    // Whether the user may add tasks to the column.
+    Task<bool> CanCreateTasksAsync(
+        Guid boardColumnId,
+        string userId);
+
+    // Where a column sits (project and board), for navigation. Null when
+    // the column does not exist or the user cannot read it.
+    Task<TaskColumnContext?> GetColumnContextAsync(
+        Guid boardColumnId,
+        string userId);
+
     // Task creation
     Task<TaskCreationResult> CreateTaskAsync(
         Guid boardColumnId,
@@ -27,7 +38,7 @@ public interface ITaskService
         int? estimatedMinutes);
 
     // Task updates
-    Task<bool> UpdateTaskAsync(
+    Task<TaskUpdateResult> UpdateTaskAsync(
         Guid taskId,
         string userId,
         string title,

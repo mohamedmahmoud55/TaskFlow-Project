@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TaskFlow.Services.Tasks;
+using TaskFlow.Services.Tasks.Models;
 using TaskFlow.Web.Models.Tasks;
 using System.Security.Claims;
 using TaskFlow.Services.Tasks.Assignments;
@@ -37,7 +38,16 @@ public class TaskController : Controller
 
         var tasks = await _taskService.GetTasksAsync(boardColumnId, userId);
 
-        return View(tasks);
+        var canCreateTasks = await _taskService.CanCreateTasksAsync(
+            boardColumnId,
+            userId);
+
+        return View(new TaskListViewModel
+        {
+            BoardColumnId = boardColumnId,
+            CanCreateTasks = canCreateTasks,
+            Tasks = tasks
+        });
     }
 
     // GET: /Task/Details/{id}
@@ -65,8 +75,16 @@ public class TaskController : Controller
 
     // GET: /Task/Create?boardColumnId=...
     [HttpGet]
-    public IActionResult Create(Guid boardColumnId)
+    public async Task<IActionResult> Create(Guid boardColumnId)
     {
+        var userId = GetCurrentUserId();
+
+        if (string.IsNullOrEmpty(userId))
+            return Challenge();
+
+        if (!await _taskService.CanCreateTasksAsync(boardColumnId, userId))
+            return Forbid();
+
         var model = new CreateTaskViewModel
         {
             BoardColumnId = boardColumnId
@@ -146,6 +164,9 @@ public class TaskController : Controller
         if (task == null)
             return NotFound();
 
+        if (!task.CanEdit)
+            return Forbid();
+
         var model = new EditTaskViewModel
         {
             Id = task.Id,
@@ -174,7 +195,7 @@ public class TaskController : Controller
         if (string.IsNullOrEmpty(userId))
             return Challenge();
 
-        var succeeded = await _taskService.UpdateTaskAsync(
+        var result = await _taskService.UpdateTaskAsync(
             model.Id,
             userId,
             model.Title,
@@ -185,8 +206,17 @@ public class TaskController : Controller
             model.EstimatedMinutes
         );
 
-        if (!succeeded)
-            return NotFound();
+        if (!result.Succeeded)
+        {
+            if (result.Reason == TaskFailureReason.NotFound)
+                return NotFound();
+
+            ModelState.AddModelError(
+                string.Empty,
+                result.ErrorMessage ?? "The task could not be updated.");
+
+            return View(model);
+        }
 
         TempData["SuccessMessage"] = "Task updated successfully.";
 
@@ -229,7 +259,16 @@ public class TaskController : Controller
         var succeeded = await _taskService.ArchiveTaskAsync(id, userId);
 
         if (!succeeded)
-            return NotFound();
+        {
+            TempData["ErrorMessage"] =
+                "The task could not be archived. You may not have permission to change it.";
+
+            return RedirectToAction(
+                "Details",
+                "Board",
+                new { id = task.BoardId }
+            );
+        }
 
         TempData["SuccessMessage"] = "Task archived successfully.";
 
@@ -259,7 +298,16 @@ public class TaskController : Controller
         var succeeded = await _taskService.DeleteTaskAsync(id, userId);
 
         if (!succeeded)
-            return NotFound();
+        {
+            TempData["ErrorMessage"] =
+                "The task could not be deleted. You may not have permission to change it.";
+
+            return RedirectToAction(
+                "Details",
+                "Board",
+                new { id = task.BoardId }
+            );
+        }
 
         TempData["SuccessMessage"] = "Task deleted successfully.";
 

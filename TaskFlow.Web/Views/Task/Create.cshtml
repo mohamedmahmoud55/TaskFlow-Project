@@ -7,6 +7,8 @@
 <div class="container mt-4">
     <div class="row justify-content-center">
         <div class="col-md-8">
+            @await Component.InvokeAsync("Breadcrumbs", new { boardColumnId = Model.BoardColumnId, current = "New task" })
+
             <div class="card shadow-sm">
                 <div class="card-header">
                     <h4 class="mb-0">Create New Task</h4>

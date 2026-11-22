@@ -218,6 +218,8 @@ public sealed class BoardController : Controller
             .CanManageProjectBoardsAsync(project.Id, userId);
         var tasksByColumn = new Dictionary<Guid, IReadOnlyList<TaskFlow.Services.Tasks.Models.TaskListItem>>();
 
+        var columnsOpenToNewTasks = new HashSet<Guid>();
+
         foreach (var column in board.Columns)
         {
             var tasks = await _taskService.GetTasksAsync(
@@ -225,7 +227,13 @@ public sealed class BoardController : Controller
                 userId);
 
             tasksByColumn[column.Id] = tasks;
+
+            if (await _taskService.CanCreateTasksAsync(column.Id, userId))
+            {
+                columnsOpenToNewTasks.Add(column.Id);
+            }
         }
+
         return View(new BoardDetailsViewModel
         {
             Id = board.Id,
@@ -237,7 +245,8 @@ public sealed class BoardController : Controller
             IsDefault = board.IsDefault,
             CanManage = canManage,
             Columns = board.Columns,
-            TasksByColumn = tasksByColumn
+            TasksByColumn = tasksByColumn,
+            ColumnsOpenToNewTasks = columnsOpenToNewTasks
         });
     }
 

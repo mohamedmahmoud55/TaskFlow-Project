@@ -1,4 +1,5 @@
 @model TaskFlow.Web.Models.TeamDetailsViewModel
+@using TaskFlow.Data.Enums
 @{
     ViewData["Title"] = Model.Name;
 }
@@ -23,6 +24,55 @@
     }
 </div>
 
+@if (Model.CanEditTeam)
+{
+    <!-- Team settings -->
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-4">
+        <a asp-action="Edit"
+           asp-route-id="@Model.Id"
+           asp-route-workspaceId="@Model.WorkspaceId"
+           class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-pencil me-1"></i>
+            Edit team
+        </a>
+
+        @if (Model.CanArchiveTeam)
+        {
+            <form asp-action="Archive"
+                  method="post"
+                  class="ms-auto"
+                  onsubmit="return confirm('Archive this team? Its projects, boards and tasks will be hidden for everyone until a workspace Owner or Admin restores it.');">
+
+                @Html.AntiForgeryToken()
+
+                <input type="hidden" name="TeamId" value="@Model.Id" />
+                <input type="hidden" name="WorkspaceId" value="@Model.WorkspaceId" />
+
+                <button type="submit" class="btn btn-outline-danger btn-sm">
+                    <i class="bi bi-archive me-1"></i>
+                    Archive
+                </button>
+            </form>
+        }
+    </div>
+}
+
+@if (TempData["Success"] is not null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (TempData["Error"] is not null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2 class="h4 mb-0">Projects</h2>
     <a asp-controller="Project" asp-action="Index" asp-route-teamId="@Model.Id" asp-route-workspaceId="@Model.WorkspaceId" class="btn btn-outline-primary">View projects</a>
@@ -30,5 +80,240 @@
 <div class="card shadow-sm">
     <div class="card-body">
         <p class="text-muted mb-0">Open this team's projects to view and create project work.</p>
+    </div>
+</div>
+
+<!-- Team Members -->
+<div class="card shadow-sm mt-4">
+    <div class="card-header bg-white py-3">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2 class="h5 mb-0">
+                    <i class="bi bi-people me-2"></i>
+                    Team Members
+                </h2>
+                <small class="text-muted">
+                    People who belong to this team.
+                </small>
+            </div>
+
+            <span class="badge text-bg-secondary">
+                @Model.Members.Count(member => member.IsActive) members
+            </span>
+        </div>
+    </div>
+
+    <div class="card-body">
+
+        @if (Model.CanManageMembers)
+        {
+            <!-- Add Member Form -->
+            <div class="border rounded p-3 mb-4">
+                <h3 class="h6 mb-3">
+                    <i class="bi bi-person-plus me-1"></i>
+                    Add Team Member
+                </h3>
+
+                @if (Model.Candidates.Count == 0)
+                {
+                    <p class="text-muted mb-0">
+                        Everyone in the workspace is already on this team.
+                        To add someone new, add them to the workspace first.
+                    </p>
+                }
+                else
+                {
+                    <form asp-controller="Team"
+                          asp-action="AddMember"
+                          method="post">
+
+                        @Html.AntiForgeryToken()
+
+                        <input type="hidden" name="TeamId" value="@Model.Id" />
+
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-6">
+                                <label for="teamMemberUser" class="form-label">
+                                    Workspace member
+                                </label>
+
+                                <select id="teamMemberUser"
+                                        name="UserId"
+                                        class="form-select"
+                                        required>
+                                    <option value="">Choose a person...</option>
+                                    @foreach (var candidate in Model.Candidates)
+                                    {
+                                        <option value="@candidate.UserId">
+                                            @candidate.DisplayName
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="teamMemberRole" class="form-label">
+                                    Team Role
+                                </label>
+
+                                <select id="teamMemberRole"
+                                        name="Role"
+                                        class="form-select">
+                                    @foreach (var role in Model.AssignableRoles)
+                                    {
+                                        <option value="@((int)role)" selected="@(role == TeamRole.Member)">
+                                            @role
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="bi bi-plus-lg me-1"></i>
+                                    Add
+                                </button>
+                            </div>
+                        </div>
+
+                        <small class="text-muted d-block mt-2">
+                            Only people who already belong to the workspace can be added.
+                            Adding a deactivated member again will reactivate their membership.
+                        </small>
+                    </form>
+                }
+            </div>
+        }
+
+        @if (Model.Members.Count == 0)
+        {
+            <div class="text-center py-4">
+                <i class="bi bi-people display-5 text-muted"></i>
+                <p class="text-muted mt-2 mb-0">
+                    No team members found.
+                </p>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Member</th>
+                            <th>Role</th>
+                            <th>Status</th>
+
+                            @if (Model.CanManageMembers)
+                            {
+                                <th class="text-end">Actions</th>
+                            }
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var member in Model.Members)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="fw-semibold">
+                                        @member.DisplayName
+                                        @if (member.IsCurrentUser)
+                                        {
+                                            <span class="badge text-bg-light border ms-1">You</span>
+                                        }
+                                    </div>
+                                    <small class="text-muted">
+                                        @member.Email
+                                    </small>
+                                </td>
+
+                                <td>
+                                    @member.Role
+                                </td>
+
+                                <td>
+                                    @if (member.IsActive)
+                                    {
+                                        <span class="badge text-bg-success">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge text-bg-secondary">Inactive</span>
+                                    }
+                                </td>
+
+                                @if (Model.CanManageMembers)
+                                {
+                                    <td>
+                                        @if (member.CanManage)
+                                        {
+                                            <div class="d-flex justify-content-end flex-wrap gap-2">
+
+                                                <!-- Update Role -->
+                                                <form asp-controller="Team"
+                                                      asp-action="UpdateMemberRole"
+                                                      method="post"
+                                                      class="d-flex gap-2">
+
+                                                    @Html.AntiForgeryToken()
+
+                                                    <input type="hidden" name="TeamId" value="@Model.Id" />
+                                                    <input type="hidden" name="MembershipId" value="@member.Id" />
+
+                                                    <select name="Role"
+                                                            class="form-select form-select-sm"
+                                                            aria-label="Member role">
+                                                        @foreach (var role in Model.AssignableRoles)
+                                                        {
+                                                            <option value="@((int)role)" selected="@(member.Role == role)">
+                                                                @role
+                                                            </option>
+                                                        }
+                                                    </select>
+
+                                                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                                                        Save
+                                                    </button>
+                                                </form>
+
+                                                <!-- Deactivate Member -->
+                                                <form asp-controller="Team"
+                                                      asp-action="DeactivateMember"
+                                                      method="post"
+                                                      onsubmit="return confirm('Are you sure you want to deactivate this member?');">
+
+                                                    @Html.AntiForgeryToken()
+
+                                                    <input type="hidden" name="TeamId" value="@Model.Id" />
+                                                    <input type="hidden" name="MembershipId" value="@member.Id" />
+
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                        <i class="bi bi-person-x me-1"></i>
+                                                        Deactivate
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        }
+                                        else if (!member.IsActive)
+                                        {
+                                            <span class="text-muted small">
+                                                Add this member again to reactivate.
+                                            </span>
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <small class="text-muted d-block mt-3">
+                Deactivating someone here removes them from the team only.
+                They stay in the workspace, and projects they were added to stay as they are.
+            </small>
+        }
+
     </div>
 </div>
