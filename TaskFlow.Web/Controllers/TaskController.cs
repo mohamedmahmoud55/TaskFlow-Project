@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TaskFlow.Services.Tasks;
+using TaskFlow.Web.Models.Tasks;
+using System.Security.Claims;
 using TaskFlow.Services.Tasks.Assignments;
 using TaskFlow.Services.Tasks.Models;
 using TaskFlow.Web.Models.Task;
@@ -41,19 +43,7 @@ public class TaskController : Controller
 
         var tasks = await _taskService.GetTasksAsync(boardColumnId, userId);
 
-        var canCreateTasks = await _taskService.CanCreateTasksAsync(
-            boardColumnId,
-            userId);
-
-        return View(new TaskListViewModel
-        {
-            BoardColumnId = boardColumnId,
-            BoardId = context.BoardId,
-            BoardName = context.BoardName,
-            ColumnName = context.ColumnName,
-            CanCreateTasks = canCreateTasks,
-            Tasks = tasks
-        });
+        return View(tasks);
     }
 
     // GET: /Task/Details/{id}
@@ -84,19 +74,6 @@ public class TaskController : Controller
     [HttpGet]
     public async Task<IActionResult> Create(Guid boardColumnId)
     {
-        var userId = GetCurrentUserId();
-
-        if (string.IsNullOrEmpty(userId))
-            return Challenge();
-
-        var context = await _taskService.GetColumnContextAsync(boardColumnId, userId);
-
-        if (context is null)
-            return NotFound();
-
-        if (!await _taskService.CanCreateTasksAsync(boardColumnId, userId))
-            return Forbid();
-
         var model = new CreateTaskViewModel
         {
             BoardColumnId = boardColumnId
@@ -223,14 +200,7 @@ public class TaskController : Controller
             if (result.Reason == TaskFailureReason.NotFound)
                 return NotFound();
 
-            ModelState.AddModelError(
-                string.Empty,
-                result.ErrorMessage ?? "The task could not be updated.");
-
-            return View(model);
-        }
-
-        TempData["Success"] = "Task updated successfully.";
+        TempData["SuccessMessage"] = "Task updated successfully.";
 
         var updatedTask = await _taskService.GetTaskAsync(
             model.Id,
@@ -295,25 +265,8 @@ public class TaskController : Controller
     {
         var userId = GetCurrentUserId();
 
-        if (string.IsNullOrEmpty(userId))
-            return Challenge();
-
-        if (!ModelState.IsValid)
-        {
-            TempData["Error"] = "Please select a valid column.";
-            return RedirectToAction("Details", "Board", new { id = model.BoardId });
-        }
-
-        var result = await _taskService.MoveTaskAsync(
-            model.TaskId,
-            userId,
-            model.TargetColumnId,
-            model.TargetIndex);
-
-        if (!result.Succeeded)
-        {
-            if (result.Reason == TaskMoveFailureReason.NotFound)
-                return NotFound();
+        if (!succeeded)
+            return NotFound();
 
             if (result.Reason == TaskMoveFailureReason.Forbidden)
                 return Forbid();
@@ -346,16 +299,7 @@ public class TaskController : Controller
         var succeeded = await _taskService.ArchiveTaskAsync(id, userId);
 
         if (!succeeded)
-        {
-            TempData["Error"] =
-                "The task could not be archived. You may not have permission to change it.";
-
-            return RedirectToAction(
-                "Details",
-                "Board",
-                new { id = task.BoardId }
-            );
-        }
+            return NotFound();
 
         TempData["Success"] = "Task archived successfully.";
 

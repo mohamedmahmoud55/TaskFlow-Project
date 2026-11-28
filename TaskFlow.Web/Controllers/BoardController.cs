@@ -442,15 +442,14 @@ public sealed class BoardController : Controller
 
         var allTasks = await _taskService.GetBoardTasksAsync(board.Id, userId);
 
-        var tasksByColumn = allTasks
-            .GroupBy(task => task.BoardColumnId)
-            .ToDictionary(
-                group => group.Key,
-                group => (IReadOnlyList<TaskListItem>)group.OrderBy(t => t.Position).ToList());
+        foreach (var column in board.Columns)
+        {
+            var tasks = await _taskService.GetTasksAsync(
+                column.Id,
+                userId);
 
-        var columnsOpenToNewTasks = board.CanCreateTasks
-            ? board.Columns.Select(c => c.Id).ToHashSet()
-            : new HashSet<Guid>();
+            tasksByColumn[column.Id] = tasks;
+        }
 
         return View(new BoardDetailsViewModel
         {

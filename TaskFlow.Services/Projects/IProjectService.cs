@@ -10,13 +10,6 @@ public interface IProjectService
         Guid? expectedWorkspaceId,
         string userId);
 
-    // Every project the user can open, across all workspaces.
-    Task<IReadOnlyList<MyProjectItem>> GetMyProjectsAsync(string userId);
-
-    // Archived projects the user could restore (project Managers and
-    // workspace Owners and Admins).
-    Task<IReadOnlyList<MyProjectItem>> GetMyArchivedProjectsAsync(string userId);
-
     Task<ProjectDetails?> GetProjectAsync(
         Guid projectId,
         Guid? expectedTeamId,

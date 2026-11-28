@@ -43,8 +43,8 @@ public interface ITaskService
         DateTime? dueDate,
         int? estimatedMinutes);
 
-    // Task updates and moves
-    Task<TaskUpdateResult> UpdateTaskAsync(
+    // Task updates
+    Task<bool> UpdateTaskAsync(
         Guid taskId,
         string userId,
         string title,

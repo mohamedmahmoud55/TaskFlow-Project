@@ -78,55 +78,6 @@ public sealed class ProjectService : IProjectService
             .ToListAsync();
     }
 
-    public async Task<IReadOnlyList<MyProjectItem>> GetMyProjectsAsync(string userId)
-    {
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            return Array.Empty<MyProjectItem>();
-        }
-
-        return await ToMyProjectItemsAsync(
-            _dbContext.Projects.ReadableBy(userId),
-            userId);
-    }
-
-    public async Task<IReadOnlyList<MyProjectItem>> GetMyArchivedProjectsAsync(string userId)
-    {
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            return Array.Empty<MyProjectItem>();
-        }
-
-        return await ToMyProjectItemsAsync(
-            _dbContext.Projects.RestorableBy(userId),
-            userId);
-    }
-
-    private static async Task<IReadOnlyList<MyProjectItem>> ToMyProjectItemsAsync(
-        IQueryable<Project> projects,
-        string userId)
-    {
-        return await projects
-            .AsNoTracking()
-            .OrderBy(project => project.Team.Workspace.Name)
-            .ThenBy(project => project.Team.Name)
-            .ThenBy(project => project.Name)
-            .Select(project => new MyProjectItem(
-                project.Id,
-                project.Name,
-                project.Status,
-                project.TeamId,
-                project.Team.Name,
-                project.Team.WorkspaceId,
-                project.Team.Workspace.Name,
-                project.Members
-                    .Where(member =>
-                        member.UserId == userId && member.IsActive)
-                    .Select(member => (ProjectRole?)member.Role)
-                    .FirstOrDefault()))
-            .ToListAsync();
-    }
-
     public async Task<ProjectDetails?> GetProjectAsync(
         Guid projectId,
         Guid? expectedTeamId,

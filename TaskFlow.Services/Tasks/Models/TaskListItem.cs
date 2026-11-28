@@ -26,12 +26,4 @@ public class TaskListItem
     public DateTime? CompletedAt { get; set; }
 
     public bool IsArchived { get; set; }
-
-    public string CreatedByUserId { get; set; } = string.Empty;
-
-    // Whether the current user may edit or archive this task.
-    public bool CanEdit { get; set; }
-
-    public IReadOnlyList<TaskAssigneeBadge> Assignees { get; set; }
-        = Array.Empty<TaskAssigneeBadge>();
 }

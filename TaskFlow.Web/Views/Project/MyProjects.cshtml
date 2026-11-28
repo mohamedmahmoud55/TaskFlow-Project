@@ -1,51 +1,10 @@
-﻿@model TaskFlow.Web.Models.MyProjectsViewModel
-
+﻿
 @{
-    var title = Model.ShowingArchived ? "Archived Projects" : "My Projects";
-    ViewData["Title"] = title;
 }
 
-<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
-    <div>
-        <h1 class="h2 mb-1">@title</h1>
-        <p class="text-muted mb-0">
-            @(Model.ShowingArchived
-                ? "Archived projects you can restore. Nobody else can see them."
-                : "Every project you can open, across all your workspaces.")
-        </p>
-    </div>
-
-    <ul class="nav nav-pills">
-        <li class="nav-item">
-            <a class="nav-link @(Model.ShowingArchived ? "" : "active")"
-               asp-action="MyProjects"
-               asp-route-archived="false">Active</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link @(Model.ShowingArchived ? "active" : "")"
-               asp-action="MyProjects"
-               asp-route-archived="true">Archived</a>
-        </li>
-    </ul>
 </div>
-
-@if (TempData["Success"] is not null)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        @TempData["Success"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
 }
 
-@if (TempData["Error"] is not null)
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        @TempData["Error"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
-
-@if (Model.Projects.Count == 0)
 {
     <div class="card border-0 shadow-sm">
         <div class="card-body text-center py-5">
@@ -58,14 +17,14 @@
             }
             else
             {
-                <h2 class="h4">No projects yet</h2>
-                <p class="text-muted">
-                    You are not part of any project yet. Create one from a team,
-                    or ask a project manager to add you.
-                </p>
-                <a asp-controller="Workspace" asp-action="Index" class="btn btn-primary">
-                    Go to My Workspaces
-                </a>
+            <h2 class="h4">No projects yet</h2>
+            <p class="text-muted">
+                You are not part of any project yet. Create one from a team,
+                or ask a project manager to add you.
+            </p>
+            <a asp-controller="Workspace" asp-action="Index" class="btn btn-primary">
+                Go to My Workspaces
+            </a>
             }
         </div>
     </div>
@@ -86,7 +45,6 @@ else
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var project in Model.Projects)
                     {
                         <tr>
                             <td class="fw-semibold">@project.Name</td>
@@ -119,11 +77,11 @@ else
                                 }
                                 else
                                 {
-                                    <a asp-action="Details"
-                                       asp-route-id="@project.Id"
-                                       class="btn btn-outline-primary btn-sm">
-                                        Open
-                                    </a>
+                                <a asp-action="Details"
+                                   asp-route-id="@project.Id"
+                                   class="btn btn-outline-primary btn-sm">
+                                    Open
+                                </a>
                                 }
                             </td>
                         </tr>

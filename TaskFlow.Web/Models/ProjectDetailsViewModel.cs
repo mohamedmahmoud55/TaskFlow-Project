@@ -26,11 +26,6 @@ public sealed class ProjectDetailsViewModel
 
     public bool CanManageMembers { get; init; }
 
-    // Whether the user may edit, change the status of, or archive the project.
-    public bool CanManageProject { get; init; }
-
-    public bool CanOpenTeam { get; init; }
-
     public IReadOnlyList<ProjectMemberItem> Members { get; init; }
         = Array.Empty<ProjectMemberItem>();
 }

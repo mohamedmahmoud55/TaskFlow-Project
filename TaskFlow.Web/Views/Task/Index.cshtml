@@ -5,37 +5,13 @@
 }
 
 <div class="container mt-4">
-    @await Component.InvokeAsync("Breadcrumbs", new { boardColumnId = Model.BoardColumnId, current = "Tasks" })
-
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
-        <div>
-            <h1 class="h2 mb-1">@(string.IsNullOrWhiteSpace(Model.ColumnName) ? "Tasks" : Model.ColumnName)</h1>
-            @if (!string.IsNullOrWhiteSpace(Model.BoardName))
-            {
-                <p class="text-muted mb-0">Board: @Model.BoardName</p>
-            }
-        </div>
-
-        <div class="d-flex gap-2">
-            @if (Model.BoardId != Guid.Empty)
-            {
-                <a asp-controller="Board"
-                   asp-action="Details"
-                   asp-route-id="@Model.BoardId"
-                   class="btn btn-outline-secondary">
-                    <i class="bi bi-kanban me-1"></i> Back to Board
-                </a>
-            }
-
-            @if (Model.CanCreateTasks)
-            {
-                <a asp-action="Create"
-                   asp-route-boardColumnId="@Model.BoardColumnId"
-                   class="btn btn-primary">
-                    <i class="bi bi-plus-lg"></i> Create Task
-                </a>
-            }
-        </div>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Tasks</h2>
+        <a asp-action="Create"
+           asp-route-boardColumnId="@Context.Request.Query["boardColumnId"]"
+           class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Create Task
+        </a>
     </div>
 
     @if (TempData["Success"] is not null)
@@ -101,17 +77,14 @@
                                     Edit
                                 </a>
 
-                                <form asp-action="Archive"
-                                      asp-route-id="@task.Id"
-                                      method="post"
-                                      onsubmit="return confirm('Archive this task?');">
-                                    @Html.AntiForgeryToken()
-                                    <button type="submit"
-                                            class="btn btn-sm btn-outline-warning">
-                                        Archive
-                                    </button>
-                                </form>
-                            }
+                            <form asp-action="Archive"
+                                  asp-route-id="@task.Id"
+                                  method="post">
+                                <button type="submit"
+                                        class="btn btn-sm btn-outline-warning">
+                                    Archive
+                                </button>
+                            </form>
                         </div>
                     </div>
                 </div>
