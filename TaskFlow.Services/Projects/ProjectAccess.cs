@@ -1,7 +1,16 @@
-﻿using TaskFlow.Data.Entities;
+﻿using Microsoft.EntityFrameworkCore;
+using TaskFlow.Data.Context;
+using TaskFlow.Data.Entities;
 using TaskFlow.Data.Enums;
 
 namespace TaskFlow.Services.Projects;
+
+/// <summary>
+/// The combined read / write / manage permissions for a single user on a single project.
+/// Built once per request and reused to avoid three separate DB round-trips.
+/// </summary>
+internal readonly record struct ProjectPermissions(bool CanRead, bool CanWrite, bool CanManage);
+
 
 /// <summary>
 /// The single definition of who may read, contribute to and manage a project.
@@ -88,6 +97,52 @@ internal static class ProjectAccess
                 member.UserId == userId &&
                 member.IsActive &&
                 member.Role == ProjectRole.Manager)));
+    }
+
+    /// <summary>
+    /// Returns the combined permissions of <paramref name="userId"/> on
+    /// <paramref name="projectId"/> in a single async DB trip.
+    /// </summary>
+    public static async System.Threading.Tasks.Task<ProjectPermissions> GetPermissionsAsync(
+        ApplicationDbContext dbContext,
+        Guid projectId,
+        string userId)
+    {
+        var row = await dbContext.Projects
+            .AsNoTracking()
+            .Where(project => project.Id == projectId)
+            .Select(project => new
+            {
+                IsWorkspaceAdmin = project.Team.Workspace.Members.Any(member =>
+                    member.UserId == userId &&
+                    member.IsActive &&
+                    (member.Role == WorkspaceRole.Owner ||
+                     member.Role == WorkspaceRole.Admin)),
+                MemberRole = project.Members
+                    .Where(member => member.UserId == userId && member.IsActive)
+                    .Select(member => (ProjectRole?)member.Role)
+                    .FirstOrDefault(),
+                ProjectIsArchived      = project.IsArchived,
+                TeamIsArchived         = project.Team.IsArchived,
+                WorkspaceIsArchived    = project.Team.Workspace.IsArchived
+            })
+            .SingleOrDefaultAsync();
+
+        if (row is null ||
+            row.ProjectIsArchived ||
+            row.TeamIsArchived ||
+            row.WorkspaceIsArchived)
+        {
+            return new ProjectPermissions(false, false, false);
+        }
+
+        var canRead   = row.IsWorkspaceAdmin || row.MemberRole is not null;
+        var canWrite  = row.IsWorkspaceAdmin ||
+                        row.MemberRole is ProjectRole.Manager or ProjectRole.Member;
+        var canManage = row.IsWorkspaceAdmin ||
+                        row.MemberRole is ProjectRole.Manager;
+
+        return new ProjectPermissions(canRead, canWrite, canManage);
     }
 
     private static IQueryable<Project> Active(IQueryable<Project> projects)
