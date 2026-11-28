@@ -24,10 +24,17 @@
                     </a>
                 }
 
+                <a asp-controller="Board"
+                   asp-action="Details"
+                   asp-route-id="@Model.BoardId"
+                   class="btn btn-outline-secondary btn-sm">
+                    Back to Board
+                </a>
+
                 <a asp-action="Index"
                    asp-route-boardColumnId="@Model.BoardColumnId"
                    class="btn btn-outline-secondary btn-sm">
-                    Back to Tasks
+                    Column List
                 </a>
             </div>
         </div>

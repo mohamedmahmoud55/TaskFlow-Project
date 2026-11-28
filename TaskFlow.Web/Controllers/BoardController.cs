@@ -1,11 +1,13 @@
-﻿
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TaskFlow.Services.Boards;
+using TaskFlow.Services.Boards.Models;
 using TaskFlow.Services.Projects;
-using TaskFlow.Web.Models.Boards;
 using TaskFlow.Services.Tasks;
+using TaskFlow.Services.Tasks.Models;
+using TaskFlow.Web.Models.Boards;
+
 namespace TaskFlow.Web.Controllers;
 
 [Authorize]
@@ -16,9 +18,9 @@ public sealed class BoardController : Controller
     private readonly IProjectService _projectService;
 
     public BoardController(
-     IBoardService boardService,
-     IProjectService projectService,
-     ITaskService taskService)
+        IBoardService boardService,
+        IProjectService projectService,
+        ITaskService taskService)
     {
         _boardService = boardService;
         _projectService = projectService;
@@ -32,7 +34,8 @@ public sealed class BoardController : Controller
     [HttpGet]
     public async Task<IActionResult> Index(
         Guid projectId,
-        Guid? teamId = null)
+        Guid? teamId = null,
+        bool archived = false)
     {
         var userId = GetCurrentUserId();
 
@@ -51,16 +54,28 @@ public sealed class BoardController : Controller
             return NotFound();
         }
 
-        var boards = await _boardService.GetBoardsAsync(
-            project.Id,
-            project.TeamId,
-            userId);
+        var canManage = await _boardService
+            .CanManageProjectBoardsAsync(project.Id, userId);
+
+        if (archived && !canManage)
+        {
+            return Forbid();
+        }
+
+        var boards = archived
+            ? await _boardService.GetArchivedBoardsAsync(project.Id, userId)
+            : await _boardService.GetBoardsAsync(
+                project.Id,
+                project.TeamId,
+                userId);
 
         return View(new BoardListViewModel
         {
             ProjectId = project.Id,
             TeamId = project.TeamId,
             ProjectName = project.Name,
+            CanManage = canManage,
+            ShowingArchived = archived,
             Boards = boards
         });
     }
@@ -169,6 +184,8 @@ public sealed class BoardController : Controller
             return View(model);
         }
 
+        TempData["Success"] = "Board created successfully.";
+
         return RedirectToAction(
             nameof(Details),
             new
@@ -176,6 +193,215 @@ public sealed class BoardController : Controller
                 id = result.BoardId.Value,
                 projectId = project.Id
             });
+    }
+
+    // ---------------------------------------------------------
+    // Edit board - GET
+    // ---------------------------------------------------------
+
+    [HttpGet]
+    public async Task<IActionResult> Edit(
+        Guid id,
+        Guid? projectId = null)
+    {
+        var userId = GetCurrentUserId();
+
+        if (userId is null)
+        {
+            return Challenge();
+        }
+
+        var board = await _boardService.GetBoardAsync(id, projectId, userId);
+
+        if (board is null)
+        {
+            return NotFound();
+        }
+
+        if (!board.CanManage)
+        {
+            return Forbid();
+        }
+
+        var project = await _projectService.GetProjectAsync(
+            board.ProjectId,
+            null,
+            userId);
+
+        if (project is null)
+        {
+            return NotFound();
+        }
+
+        var activeBoards = await _boardService.GetBoardsAsync(
+            board.ProjectId,
+            project.TeamId,
+            userId);
+
+        var otherActiveBoards = activeBoards
+            .Where(b => b.Id != board.Id)
+            .ToList();
+
+        return View(new EditBoardViewModel
+        {
+            Id = board.Id,
+            ProjectId = board.ProjectId,
+            TeamId = project.TeamId,
+            Name = board.Name,
+            Description = board.Description,
+            IsDefault = board.IsDefault,
+            CurrentlyDefault = board.IsDefault,
+            CanArchive = otherActiveBoards.Count > 0,
+            OtherActiveBoards = otherActiveBoards
+        });
+    }
+
+    // ---------------------------------------------------------
+    // Edit board - POST
+    // ---------------------------------------------------------
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(EditBoardViewModel model)
+    {
+        var userId = GetCurrentUserId();
+
+        if (userId is null)
+        {
+            return Challenge();
+        }
+
+        if (!ModelState.IsValid)
+        {
+            await PopulateEditBoardOptionsAsync(model, userId);
+            return View(model);
+        }
+
+        var result = await _boardService.UpdateBoardAsync(
+            model.Id,
+            userId,
+            model.Name,
+            model.Description,
+            model.IsDefault);
+
+        if (!result.Succeeded)
+        {
+            if (result.Reason == BoardFailureReason.NotFound)
+            {
+                return NotFound();
+            }
+
+            if (result.Reason == BoardFailureReason.Forbidden)
+            {
+                return Forbid();
+            }
+
+            ModelState.AddModelError(
+                string.Empty,
+                result.ErrorMessage ?? "The board could not be updated.");
+
+            await PopulateEditBoardOptionsAsync(model, userId);
+            return View(model);
+        }
+
+        TempData["Success"] = "Board updated successfully.";
+
+        return RedirectToAction(
+            nameof(Details),
+            new { id = model.Id, projectId = model.ProjectId });
+    }
+
+    // ---------------------------------------------------------
+    // Archive & restore board
+    // ---------------------------------------------------------
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Archive(ArchiveBoardViewModel model)
+    {
+        var userId = GetCurrentUserId();
+
+        if (userId is null)
+        {
+            return Challenge();
+        }
+
+        if (!ModelState.IsValid)
+        {
+            TempData["Error"] = "Invalid board information.";
+            return RedirectToAction(
+                nameof(Index),
+                new { projectId = model.ProjectId });
+        }
+
+        var result = await _boardService.ArchiveBoardAsync(
+            model.BoardId,
+            userId,
+            model.NewDefaultBoardId);
+
+        if (!result.Succeeded)
+        {
+            if (result.Reason == BoardFailureReason.NotFound)
+            {
+                return NotFound();
+            }
+
+            if (result.Reason == BoardFailureReason.Forbidden)
+            {
+                return Forbid();
+            }
+
+            TempData["Error"] = result.ErrorMessage ?? "Unable to archive the board.";
+
+            return RedirectToAction(
+                nameof(Edit),
+                new { id = model.BoardId, projectId = model.ProjectId });
+        }
+
+        TempData["Success"] =
+            "Board archived. Managers can restore it from the Archived tab.";
+
+        return RedirectToAction(
+            nameof(Index),
+            new { projectId = model.ProjectId });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Restore(RestoreBoardViewModel model)
+    {
+        var userId = GetCurrentUserId();
+
+        if (userId is null)
+        {
+            return Challenge();
+        }
+
+        if (!ModelState.IsValid)
+        {
+            TempData["Error"] = "Invalid board information.";
+            return RedirectToAction(
+                nameof(Index),
+                new { projectId = model.ProjectId, archived = true });
+        }
+
+        var result = await _boardService.RestoreBoardAsync(
+            model.BoardId,
+            userId);
+
+        if (!result.Succeeded)
+        {
+            TempData["Error"] = result.ErrorMessage ?? "Unable to restore the board.";
+            return RedirectToAction(
+                nameof(Index),
+                new { projectId = model.ProjectId, archived = true });
+        }
+
+        TempData["Success"] = "Board restored successfully.";
+
+        return RedirectToAction(
+            nameof(Details),
+            new { id = model.BoardId, projectId = model.ProjectId });
     }
 
     // ---------------------------------------------------------
@@ -214,25 +440,17 @@ public sealed class BoardController : Controller
             return NotFound();
         }
 
-        var canManage = await _boardService
-            .CanManageProjectBoardsAsync(project.Id, userId);
-        var tasksByColumn = new Dictionary<Guid, IReadOnlyList<TaskFlow.Services.Tasks.Models.TaskListItem>>();
+        var allTasks = await _taskService.GetBoardTasksAsync(board.Id, userId);
 
-        var columnsOpenToNewTasks = new HashSet<Guid>();
+        var tasksByColumn = allTasks
+            .GroupBy(task => task.BoardColumnId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<TaskListItem>)group.OrderBy(t => t.Position).ToList());
 
-        foreach (var column in board.Columns)
-        {
-            var tasks = await _taskService.GetTasksAsync(
-                column.Id,
-                userId);
-
-            tasksByColumn[column.Id] = tasks;
-
-            if (await _taskService.CanCreateTasksAsync(column.Id, userId))
-            {
-                columnsOpenToNewTasks.Add(column.Id);
-            }
-        }
+        var columnsOpenToNewTasks = board.CanCreateTasks
+            ? board.Columns.Select(c => c.Id).ToHashSet()
+            : new HashSet<Guid>();
 
         return View(new BoardDetailsViewModel
         {
@@ -243,7 +461,8 @@ public sealed class BoardController : Controller
             Name = board.Name,
             Description = board.Description,
             IsDefault = board.IsDefault,
-            CanManage = canManage,
+            CanManage = board.CanManage,
+            CanMoveTasks = board.CanCreateTasks,
             Columns = board.Columns,
             TasksByColumn = tasksByColumn,
             ColumnsOpenToNewTasks = columnsOpenToNewTasks
@@ -277,15 +496,14 @@ public sealed class BoardController : Controller
             return NotFound();
         }
 
-        if (!await _boardService.CanManageProjectBoardsAsync(
-                board.ProjectId, userId))
+        if (!board.CanManage)
         {
             return Forbid();
         }
 
         if (!ModelState.IsValid)
         {
-            TempData["ErrorMessage"] =
+            TempData["Error"] =
                 "Please provide valid column information.";
 
             return RedirectToAction(
@@ -301,7 +519,7 @@ public sealed class BoardController : Controller
             model.WipLimit,
             model.IsCompleted);
 
-        TempData[result.Succeeded ? "SuccessMessage" : "ErrorMessage"] =
+        TempData[result.Succeeded ? "Success" : "Error"] =
             result.Succeeded
                 ? "Column created successfully."
                 : result.ErrorMessage ?? "The column could not be created.";
@@ -343,15 +561,14 @@ public sealed class BoardController : Controller
             return NotFound();
         }
 
-        if (!await _boardService.CanManageProjectBoardsAsync(
-                board.ProjectId, userId))
+        if (!board.CanManage)
         {
             return Forbid();
         }
 
         if (!ModelState.IsValid)
         {
-            TempData["ErrorMessage"] =
+            TempData["Error"] =
                 "Please provide valid column information.";
 
             return RedirectToAction(
@@ -367,7 +584,7 @@ public sealed class BoardController : Controller
             model.WipLimit,
             model.IsCompleted);
 
-        TempData[succeeded ? "SuccessMessage" : "ErrorMessage"] =
+        TempData[succeeded ? "Success" : "Error"] =
             succeeded
                 ? "Column updated successfully."
                 : "The column could not be updated.";
@@ -404,8 +621,7 @@ public sealed class BoardController : Controller
             return NotFound();
         }
 
-        if (!await _boardService.CanManageProjectBoardsAsync(
-                board.ProjectId, userId))
+        if (!board.CanManage)
         {
             return Forbid();
         }
@@ -415,7 +631,7 @@ public sealed class BoardController : Controller
             userId,
             orderedColumnIds);
 
-        TempData[succeeded ? "SuccessMessage" : "ErrorMessage"] =
+        TempData[succeeded ? "Success" : "Error"] =
             succeeded
                 ? "Columns reordered successfully."
                 : "The column order could not be updated.";
@@ -426,8 +642,64 @@ public sealed class BoardController : Controller
     }
 
     // ---------------------------------------------------------
-    // Current user
+    // Delete column
     // ---------------------------------------------------------
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteColumn(
+        Guid boardId,
+        Guid columnId)
+    {
+        var userId = GetCurrentUserId();
+
+        if (userId is null)
+        {
+            return Challenge();
+        }
+
+        var result = await _boardService.DeleteColumnAsync(columnId, userId);
+
+        if (!result.Succeeded)
+        {
+            if (result.Reason == BoardFailureReason.NotFound)
+            {
+                return NotFound();
+            }
+
+            if (result.Reason == BoardFailureReason.Forbidden)
+            {
+                return Forbid();
+            }
+
+            TempData["Error"] = result.ErrorMessage ?? "The column could not be deleted.";
+        }
+        else
+        {
+            TempData["Success"] = "Column deleted successfully.";
+        }
+
+        return RedirectToAction(
+            nameof(Details),
+            new { id = boardId });
+    }
+
+    private async Task PopulateEditBoardOptionsAsync(EditBoardViewModel model, string userId)
+    {
+        var board = await _boardService.GetBoardAsync(model.Id, null, userId);
+        if (board is null)
+        {
+            return;
+        }
+
+        var activeBoards = await _boardService.GetBoardsAsync(board.ProjectId, null, userId);
+        var otherActiveBoards = activeBoards.Where(b => b.Id != board.Id).ToList();
+
+        model.ProjectId = board.ProjectId;
+        model.CurrentlyDefault = board.IsDefault;
+        model.CanArchive = otherActiveBoards.Count > 0;
+        model.OtherActiveBoards = otherActiveBoards;
+    }
 
     private string? GetCurrentUserId()
     {

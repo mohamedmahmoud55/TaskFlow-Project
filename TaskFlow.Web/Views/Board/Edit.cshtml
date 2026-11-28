@@ -1,0 +1,168 @@
+@model TaskFlow.Web.Models.Boards.EditBoardViewModel
+
+@{
+    ViewData["Title"] = "Edit Board";
+}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+
+            @await Component.InvokeAsync("Breadcrumbs", new { projectId = Model.ProjectId, boardId = Model.Id, boardName = Model.Name, current = "Edit board" })
+
+            @if (TempData["Success"] is not null)
+            {
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    @TempData["Success"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            }
+
+            @if (TempData["Error"] is not null)
+            {
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    @TempData["Error"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            }
+
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body p-4">
+
+                    <h1 class="h3 fw-bold mb-4">Edit board</h1>
+
+                    <form asp-controller="Board"
+                          asp-action="Edit"
+                          method="post">
+
+                        @Html.AntiForgeryToken()
+
+                        <div asp-validation-summary="ModelOnly"
+                             class="text-danger mb-3"
+                             role="alert"></div>
+
+                        <input type="hidden" asp-for="Id" />
+                        <input type="hidden" asp-for="ProjectId" />
+                        <input type="hidden" asp-for="TeamId" />
+
+                        <div class="mb-3">
+                            <label asp-for="Name" class="form-label fw-semibold"></label>
+                            <input asp-for="Name" class="form-control" autocomplete="off" />
+                            <span asp-validation-for="Name" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-4">
+                            <label asp-for="Description" class="form-label fw-semibold"></label>
+                            <textarea asp-for="Description" class="form-control" rows="4"></textarea>
+                            <span asp-validation-for="Description" class="text-danger"></span>
+                        </div>
+
+                        <div class="form-check mb-4">
+                            @if (Model.CurrentlyDefault)
+                            {
+                                <input type="hidden" asp-for="IsDefault" value="true" />
+                                <input type="checkbox"
+                                       class="form-check-input"
+                                       id="defaultBoardReadonly"
+                                       checked
+                                       disabled />
+                                <label class="form-check-label" for="defaultBoardReadonly">
+                                    Default board
+                                </label>
+                                <div class="form-text">
+                                    This is currently the project's default board. To change it, mark another board as default.
+                                </div>
+                            }
+                            else
+                            {
+                                <input asp-for="IsDefault" class="form-check-input" />
+                                <label asp-for="IsDefault" class="form-check-label"></label>
+                                <div class="form-text">
+                                    Making this the default board replaces the current default board.
+                                </div>
+                            }
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a asp-controller="Board"
+                               asp-action="Details"
+                               asp-route-id="@Model.Id"
+                               asp-route-projectId="@Model.ProjectId"
+                               class="btn btn-outline-secondary">
+                                Cancel
+                            </a>
+
+                            <button type="submit" class="btn btn-primary">
+                                Save changes
+                            </button>
+                        </div>
+
+                    </form>
+
+                </div>
+            </div>
+
+            <div class="card border-danger-subtle shadow-sm">
+                <div class="card-body p-4">
+                    <h2 class="h5 text-danger mb-2">
+                        <i class="bi bi-archive me-1"></i>
+                        Archive board
+                    </h2>
+
+                    @if (!Model.CanArchive)
+                    {
+                        <p class="text-muted mb-0">
+                            This is the only active board in the project, so it cannot be archived.
+                        </p>
+                    }
+                    else
+                    {
+                        <p class="text-muted">
+                            Archiving hides this board and its tasks until a manager restores it from the Archived tab.
+                        </p>
+
+                        <form asp-controller="Board"
+                              asp-action="Archive"
+                              method="post"
+                              onsubmit="return confirm('Archive this board? It will be hidden until a manager restores it.');">
+
+                            @Html.AntiForgeryToken()
+
+                            <input type="hidden" name="BoardId" value="@Model.Id" />
+                            <input type="hidden" name="ProjectId" value="@Model.ProjectId" />
+
+                            @if (Model.CurrentlyDefault)
+                            {
+                                <div class="mb-3">
+                                    <label for="NewDefaultBoardId" class="form-label fw-semibold">
+                                        Choose a new default board
+                                    </label>
+                                    <select id="NewDefaultBoardId"
+                                            name="NewDefaultBoardId"
+                                            class="form-select"
+                                            required>
+                                        <option value="">Select replacement default board...</option>
+                                        @foreach (var other in Model.OtherActiveBoards)
+                                        {
+                                            <option value="@other.Id">@other.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                            }
+
+                            <button type="submit" class="btn btn-outline-danger">
+                                <i class="bi bi-archive me-1"></i>
+                                Archive board
+                            </button>
+                        </form>
+                    }
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

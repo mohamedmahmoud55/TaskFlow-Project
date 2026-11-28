@@ -1,5 +1,4 @@
-﻿
-namespace TaskFlow.Services.Boards.Models;
+﻿namespace TaskFlow.Services.Boards.Models;
 
 public class BoardDetails
 {
@@ -9,6 +8,8 @@ public class BoardDetails
     public string? Description { get; set; }
     public bool IsDefault { get; set; }
     public DateTime CreatedAt { get; set; }
+    public bool CanManage { get; set; }
+    public bool CanCreateTasks { get; set; }
 
     public IReadOnlyList<BoardColumnItem> Columns { get; set; }
         = new List<BoardColumnItem>();

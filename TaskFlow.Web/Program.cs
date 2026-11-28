@@ -40,6 +40,7 @@ namespace TaskFlow.Web
             builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
             builder.Services.AddScoped<ITeamService, TeamService>();
             builder.Services.AddScoped<IProjectService, ProjectService>();
+            builder.Services.AddScoped<IProjectMemberService, ProjectMemberService>();
            
             builder.Services.AddScoped<IBoardService, BoardService>();
             builder.Services.AddScoped<ITaskService, TaskService>();

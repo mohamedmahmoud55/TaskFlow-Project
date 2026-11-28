@@ -10,6 +10,12 @@ public interface ITaskService
         Guid boardColumnId,
         string userId);
 
+    // Loads every active task across all columns of a board in one query,
+    // ordered by column position then task position.
+    Task<IReadOnlyList<TaskListItem>> GetBoardTasksAsync(
+        Guid boardId,
+        string userId);
+
     Task<TaskDetails?> GetTaskAsync(
         Guid taskId,
         Guid? expectedBoardColumnId,
@@ -37,7 +43,7 @@ public interface ITaskService
         DateTime? dueDate,
         int? estimatedMinutes);
 
-    // Task updates
+    // Task updates and moves
     Task<TaskUpdateResult> UpdateTaskAsync(
         Guid taskId,
         string userId,
@@ -47,6 +53,12 @@ public interface ITaskService
         DateTime? startDate,
         DateTime? dueDate,
         int? estimatedMinutes);
+
+    Task<TaskMoveResult> MoveTaskAsync(
+        Guid taskId,
+        string userId,
+        Guid targetColumnId,
+        int targetIndex);
 
     // Task deletion and archiving
     Task<bool> ArchiveTaskAsync(

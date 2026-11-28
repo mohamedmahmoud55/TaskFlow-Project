@@ -1,35 +1,56 @@
 ﻿@model TaskFlow.Web.Models.Tasks.TaskListViewModel
 
 @{
-    ViewData["Title"] = "Tasks";
+    ViewData["Title"] = string.IsNullOrWhiteSpace(Model.ColumnName) ? "Tasks" : $"{Model.ColumnName} - Tasks";
 }
 
 <div class="container mt-4">
     @await Component.InvokeAsync("Breadcrumbs", new { boardColumnId = Model.BoardColumnId, current = "Tasks" })
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Tasks</h2>
-        @if (Model.CanCreateTasks)
-        {
-            <a asp-action="Create"
-               asp-route-boardColumnId="@Model.BoardColumnId"
-               class="btn btn-primary">
-                <i class="bi bi-plus-lg"></i> Create Task
-            </a>
-        }
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+        <div>
+            <h1 class="h2 mb-1">@(string.IsNullOrWhiteSpace(Model.ColumnName) ? "Tasks" : Model.ColumnName)</h1>
+            @if (!string.IsNullOrWhiteSpace(Model.BoardName))
+            {
+                <p class="text-muted mb-0">Board: @Model.BoardName</p>
+            }
+        </div>
+
+        <div class="d-flex gap-2">
+            @if (Model.BoardId != Guid.Empty)
+            {
+                <a asp-controller="Board"
+                   asp-action="Details"
+                   asp-route-id="@Model.BoardId"
+                   class="btn btn-outline-secondary">
+                    <i class="bi bi-kanban me-1"></i> Back to Board
+                </a>
+            }
+
+            @if (Model.CanCreateTasks)
+            {
+                <a asp-action="Create"
+                   asp-route-boardColumnId="@Model.BoardColumnId"
+                   class="btn btn-primary">
+                    <i class="bi bi-plus-lg"></i> Create Task
+                </a>
+            }
+        </div>
     </div>
 
-    @if (TempData["SuccessMessage"] != null)
+    @if (TempData["Success"] is not null)
     {
-        <div class="alert alert-success">
-            @TempData["SuccessMessage"]
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @TempData["Success"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     }
 
-    @if (TempData["ErrorMessage"] != null)
+    @if (TempData["Error"] is not null)
     {
-        <div class="alert alert-danger">
-            @TempData["ErrorMessage"]
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @TempData["Error"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     }
 
@@ -45,15 +66,15 @@
             @foreach (var task in Model.Tasks)
             {
                 <div class="list-group-item">
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <div>
-                            <h5 class="mb-1">
+                            <h2 class="h5 mb-1">
                                 <a asp-action="Details"
                                    asp-route-id="@task.Id"
                                    class="text-decoration-none">
                                     @task.Title
                                 </a>
-                            </h5>
+                            </h2>
 
                             <small class="text-muted">
                                 Priority: @task.Priority
@@ -82,7 +103,9 @@
 
                                 <form asp-action="Archive"
                                       asp-route-id="@task.Id"
-                                      method="post">
+                                      method="post"
+                                      onsubmit="return confirm('Archive this task?');">
+                                    @Html.AntiForgeryToken()
                                     <button type="submit"
                                             class="btn btn-sm btn-outline-warning">
                                         Archive

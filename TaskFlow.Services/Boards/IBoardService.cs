@@ -10,6 +10,10 @@ public interface IBoardService
         Guid? expectedTeamId,
         string userId);
 
+    Task<IReadOnlyList<BoardListItem>> GetArchivedBoardsAsync(
+        Guid projectId,
+        string userId);
+
     Task<BoardDetails?> GetBoardAsync(
         Guid boardId,
         Guid? expectedProjectId,
@@ -22,6 +26,22 @@ public interface IBoardService
         string name,
         string? description,
         bool isDefault);
+
+    Task<BoardOperationResult> UpdateBoardAsync(
+        Guid boardId,
+        string userId,
+        string name,
+        string? description,
+        bool isDefault);
+
+    Task<BoardOperationResult> ArchiveBoardAsync(
+        Guid boardId,
+        string userId,
+        Guid? newDefaultBoardId = null);
+
+    Task<BoardOperationResult> RestoreBoardAsync(
+        Guid boardId,
+        string userId);
 
     // Column operations
     Task<BoardColumnCreationResult> CreateColumnAsync(
@@ -44,7 +64,12 @@ public interface IBoardService
         Guid boardId,
         string userId,
         IReadOnlyList<Guid> orderedColumnIds);
+
+    Task<BoardOperationResult> DeleteColumnAsync(
+        Guid columnId,
+        string userId);
+
     Task<bool> CanManageProjectBoardsAsync(
-    Guid projectId,
-    string userId);
+        Guid projectId,
+        string userId);
 }
