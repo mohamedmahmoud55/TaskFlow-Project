@@ -2,16 +2,9 @@
 
 namespace TaskFlow.Services.Tasks.Models;
 
-public sealed record TaskAssigneeBadge(
-    string UserId,
-    string DisplayName,
-    string Initials);
-
 public class TaskListItem
 {
     public Guid Id { get; set; }
-
-    public Guid BoardColumnId { get; set; }
 
     public string Title { get; set; } = string.Empty;
 
@@ -23,7 +16,10 @@ public class TaskListItem
 
     public bool IsCompleted { get; set; }
 
-    public DateTime? CompletedAt { get; set; }
-
     public bool IsArchived { get; set; }
+
+    public string CreatedByUserId { get; set; } = string.Empty;
+
+    // Whether the current user may edit, archive or delete this task.
+    public bool CanEdit { get; set; }
 }

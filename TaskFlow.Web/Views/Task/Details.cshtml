@@ -15,16 +15,19 @@
             <h4 class="mb-0">Task Details</h4>
 
             <div class="d-flex gap-2">
-                <a asp-action="Edit"
-                   asp-route-id="@Model.Id"
-                   class="btn btn-primary btn-sm">
-                    Edit Task
-                </a>
+                @if (Model.CanEdit)
+                {
+                    <a asp-action="Edit"
+                       asp-route-id="@Model.Id"
+                       class="btn btn-primary btn-sm">
+                        Edit Task
+                    </a>
+                }
 
                 <a asp-action="Index"
                    asp-route-boardColumnId="@Model.BoardColumnId"
                    class="btn btn-outline-secondary btn-sm">
-                    Column List
+                    Back to Tasks
                 </a>
             </div>
         </div>

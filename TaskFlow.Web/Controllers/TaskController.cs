@@ -1,13 +1,13 @@
-﻿using System.Security.Claims;
+﻿
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TaskFlow.Services.Tasks;
+using TaskFlow.Services.Tasks.Models;
 using TaskFlow.Web.Models.Tasks;
 using System.Security.Claims;
 using TaskFlow.Services.Tasks.Assignments;
-using TaskFlow.Services.Tasks.Models;
 using TaskFlow.Web.Models.Task;
-using TaskFlow.Web.Models.Tasks;
+using TaskFlow.Services.Tasks.Assignments.Models;
 
 namespace TaskFlow.Web.Controllers;
 
@@ -36,14 +36,18 @@ public class TaskController : Controller
         if (string.IsNullOrEmpty(userId))
             return Challenge();
 
-        var context = await _taskService.GetColumnContextAsync(boardColumnId, userId);
-
-        if (context is null)
-            return NotFound();
-
         var tasks = await _taskService.GetTasksAsync(boardColumnId, userId);
 
-        return View(tasks);
+        var canCreateTasks = await _taskService.CanCreateTasksAsync(
+            boardColumnId,
+            userId);
+
+        return View(new TaskListViewModel
+        {
+            BoardColumnId = boardColumnId,
+            CanCreateTasks = canCreateTasks,
+            Tasks = tasks
+        });
     }
 
     // GET: /Task/Details/{id}
@@ -58,9 +62,8 @@ public class TaskController : Controller
 
         if (task == null)
             return NotFound();
-
         var assignmentDetails =
-            await _taskAssignmentService.GetAssignmentDetailsAsync(id, userId);
+    await _taskAssignmentService.GetAssignmentDetailsAsync(id, userId);
 
         if (assignmentDetails == null)
             return NotFound();
@@ -74,6 +77,14 @@ public class TaskController : Controller
     [HttpGet]
     public async Task<IActionResult> Create(Guid boardColumnId)
     {
+        var userId = GetCurrentUserId();
+
+        if (string.IsNullOrEmpty(userId))
+            return Challenge();
+
+        if (!await _taskService.CanCreateTasksAsync(boardColumnId, userId))
+            return Forbid();
+
         var model = new CreateTaskViewModel
         {
             BoardColumnId = boardColumnId
@@ -116,7 +127,7 @@ public class TaskController : Controller
             return View(model);
         }
 
-        TempData["Success"] = "Task created successfully.";
+        TempData["SuccessMessage"] = "Task created successfully.";
 
         var createdTask = await _taskService.GetTaskAsync(
             result.TaskId.Value,
@@ -200,6 +211,13 @@ public class TaskController : Controller
             if (result.Reason == TaskFailureReason.NotFound)
                 return NotFound();
 
+            ModelState.AddModelError(
+                string.Empty,
+                result.ErrorMessage ?? "The task could not be updated.");
+
+            return View(model);
+        }
+
         TempData["SuccessMessage"] = "Task updated successfully.";
 
         var updatedTask = await _taskService.GetTaskAsync(
@@ -223,64 +241,6 @@ public class TaskController : Controller
         );
     }
 
-    // POST: /Task/Move (JSON endpoint for drag and drop)
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Move([FromBody] MoveTaskRequest? request)
-    {
-        var userId = GetCurrentUserId();
-
-        if (string.IsNullOrEmpty(userId))
-            return Challenge();
-
-        if (request is null || request.TaskId == Guid.Empty || request.TargetColumnId == Guid.Empty)
-        {
-            return BadRequest(new { ok = false, error = "Invalid move request." });
-        }
-
-        var result = await _taskService.MoveTaskAsync(
-            request.TaskId,
-            userId,
-            request.TargetColumnId,
-            request.TargetIndex);
-
-        if (result.Succeeded)
-        {
-            return Ok(new { ok = true, isCompleted = result.IsCompleted });
-        }
-
-        return result.Reason switch
-        {
-            TaskMoveFailureReason.NotFound => NotFound(new { ok = false, error = result.ErrorMessage }),
-            TaskMoveFailureReason.Forbidden => StatusCode(StatusCodes.Status403Forbidden, new { ok = false, error = result.ErrorMessage }),
-            TaskMoveFailureReason.Conflict => Conflict(new { ok = false, error = result.ErrorMessage }),
-            _ => BadRequest(new { ok = false, error = result.ErrorMessage ?? "The task could not be moved." })
-        };
-    }
-
-    // POST: /Task/MoveForm (non-JavaScript accessible fallback)
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> MoveForm(MoveTaskFormViewModel model)
-    {
-        var userId = GetCurrentUserId();
-
-        if (!succeeded)
-            return NotFound();
-
-            if (result.Reason == TaskMoveFailureReason.Forbidden)
-                return Forbid();
-
-            TempData["Error"] = result.ErrorMessage ?? "The task could not be moved.";
-        }
-        else
-        {
-            TempData["Success"] = "Task moved successfully.";
-        }
-
-        return RedirectToAction("Details", "Board", new { id = model.BoardId });
-    }
-
     // POST: /Task/Archive/{id}
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -299,9 +259,57 @@ public class TaskController : Controller
         var succeeded = await _taskService.ArchiveTaskAsync(id, userId);
 
         if (!succeeded)
+        {
+            TempData["ErrorMessage"] =
+                "The task could not be archived. You may not have permission to change it.";
+
+            return RedirectToAction(
+                "Details",
+                "Board",
+                new { id = task.BoardId }
+            );
+        }
+
+        TempData["SuccessMessage"] = "Task archived successfully.";
+
+        return RedirectToAction(
+            "Details",
+            "Board",
+            new { id = task.BoardId }
+        );
+    }
+
+
+    // POST: /Task/Delete/{id}
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        var userId = GetCurrentUserId();
+
+        if (string.IsNullOrEmpty(userId))
+            return Challenge();
+
+        var task = await _taskService.GetTaskAsync(id, null, userId);
+
+        if (task == null)
             return NotFound();
 
-        TempData["Success"] = "Task archived successfully.";
+        var succeeded = await _taskService.DeleteTaskAsync(id, userId);
+
+        if (!succeeded)
+        {
+            TempData["ErrorMessage"] =
+                "The task could not be deleted. You may not have permission to change it.";
+
+            return RedirectToAction(
+                "Details",
+                "Board",
+                new { id = task.BoardId }
+            );
+        }
+
+        TempData["SuccessMessage"] = "Task deleted successfully.";
 
         return RedirectToAction(
             "Details",
@@ -353,3 +361,4 @@ public class TaskController : Controller
         );
     }
 }
+

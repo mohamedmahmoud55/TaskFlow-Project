@@ -7,10 +7,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="TaskFlow.Services.Tests" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\TaskFlow.Data\TaskFlow.Data.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="10.0.14" />
   </ItemGroup>

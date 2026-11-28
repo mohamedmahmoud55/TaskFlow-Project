@@ -24,6 +24,25 @@ public sealed class ProjectController : Controller
     }
 
     [HttpGet]
+    public async Task<IActionResult> MyProjects(bool archived = false)
+    {
+        var userId = GetCurrentUserId();
+
+        if (userId is null)
+            return Challenge();
+
+        var projects = archived
+            ? await _projectService.GetMyArchivedProjectsAsync(userId)
+            : await _projectService.GetMyProjectsAsync(userId);
+
+        return View(new MyProjectsViewModel
+        {
+            ShowingArchived = archived,
+            Projects = projects
+        });
+    }
+
+    [HttpGet]
     public async Task<IActionResult> Index(Guid teamId, Guid? workspaceId = null)
     {
         var userId = GetCurrentUserId();
@@ -136,6 +155,18 @@ public sealed class ProjectController : Controller
                 project.Id,
                 userId);
 
+        var canManageProject =
+            await _projectService.CanManageProjectAsync(
+                project.Id,
+                userId);
+
+        // A guest added to just this project cannot open its team page.
+        var canOpenTeam =
+            await _teamService.GetTeamAsync(
+                project.TeamId,
+                project.WorkspaceId,
+                userId) is not null;
+
         return View(new ProjectDetailsViewModel
         {
             Id = project.Id,
@@ -148,6 +179,8 @@ public sealed class ProjectController : Controller
             Status = project.Status,
             CurrentUserRole = project.CurrentUserRole,
             CanManageMembers = canManageMembers,
+            CanManageProject = canManageProject,
+            CanOpenTeam = canOpenTeam,
             Members = members
         });
     }

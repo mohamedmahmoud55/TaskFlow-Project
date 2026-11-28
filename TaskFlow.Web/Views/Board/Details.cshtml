@@ -1,10 +1,7 @@
 ﻿@model TaskFlow.Web.Models.Boards.BoardDetailsViewModel
-@using TaskFlow.Data.Enums
 
 @{
     ViewData["Title"] = Model.Name;
-    var orderedColumns = Model.Columns.OrderBy(c => c.Position).ToList();
-    var todayUtc = DateTime.UtcNow.Date;
 }
 
 <div class="container-fluid py-4">
@@ -16,7 +13,7 @@
 
         <div>
             <div class="d-flex align-items-center gap-2">
-                <h1 class="h2 fw-bold mb-0">@Model.Name</h1>
+                <h2 class="fw-bold mb-0">@Model.Name</h2>
 
                 @if (Model.IsDefault)
                 {
@@ -29,18 +26,7 @@
             </p>
         </div>
 
-        <div class="d-flex flex-wrap gap-2">
-            @if (Model.CanManage)
-            {
-                <a asp-controller="Board"
-                   asp-action="Edit"
-                   asp-route-id="@Model.Id"
-                   asp-route-projectId="@Model.ProjectId"
-                   class="btn btn-outline-primary">
-                    <i class="bi bi-pencil"></i> Edit Board
-                </a>
-            }
-
+        <div class="d-flex gap-2">
             <a asp-controller="Board"
                asp-action="Index"
                asp-route-projectId="@Model.ProjectId"
@@ -53,35 +39,22 @@
     </div>
 
     <!-- Notifications -->
-    @if (TempData["Success"] is not null)
+    @if (TempData["SuccessMessage"] is not null)
     {
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            @TempData["Success"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="alert alert-success alert-dismissible fade show">
+            @TempData["SuccessMessage"]
+            <button type="button" class="btn-close"
+                    data-bs-dismiss="alert"></button>
         </div>
     }
 
-    @if (TempData["Error"] is not null)
+    @if (TempData["ErrorMessage"] is not null)
     {
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            @TempData["Error"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="alert alert-danger alert-dismissible fade show">
+            @TempData["ErrorMessage"]
+            <button type="button" class="btn-close"
+                    data-bs-dismiss="alert"></button>
         </div>
-    }
-
-    <div id="kanban-error-alert"
-         class="alert alert-danger alert-dismissible d-none"
-         role="alert"
-         aria-live="assertive">
-        <span id="kanban-error-text"></span>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-
-    @if (Model.CanMoveTasks)
-    {
-        <form id="kanban-antiforgery-form" class="d-none">
-            @Html.AntiForgeryToken()
-        </form>
     }
 
     <!-- Add Column -->
@@ -89,7 +62,7 @@
     {
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-body">
-                <h2 class="h5 fw-semibold mb-3">Add a Column</h2>
+                <h5 class="fw-semibold mb-3">Add a Column</h5>
 
                 <form asp-controller="Board"
                       asp-action="CreateColumn"
@@ -101,19 +74,17 @@
                     <div class="row g-3 align-items-end">
 
                         <div class="col-md-4">
-                            <label for="newColumnName" class="form-label">Column Name</label>
-                            <input id="newColumnName"
-                                   name="Name"
+                            <label class="form-label">Column Name</label>
+                            <input name="Name"
                                    class="form-control"
                                    maxlength="100"
                                    required
                                    placeholder="e.g. Review" />
                         </div>
 
-                        <div class="col-md-2">
-                            <label for="newColumnWip" class="form-label">WIP Limit</label>
-                            <input id="newColumnWip"
-                                   name="WipLimit"
+                        <div class="col-md-3">
+                            <label class="form-label">WIP Limit</label>
+                            <input name="WipLimit"
                                    type="number"
                                    min="1"
                                    class="form-control"
@@ -121,28 +92,16 @@
                         </div>
 
                         <div class="col-md-3">
-                            <label for="newColumnDesc" class="form-label">Description</label>
-                            <input id="newColumnDesc"
-                                   name="Description"
+                            <label class="form-label">Description</label>
+                            <input name="Description"
                                    class="form-control"
                                    maxlength="500"
                                    placeholder="Optional" />
                         </div>
 
-                        <div class="col-md-1">
-                            <div class="form-check">
-                                <input id="newColumnCompleted"
-                                       name="IsCompleted"
-                                       type="checkbox"
-                                       value="true"
-                                       class="form-check-input" />
-                                <input name="IsCompleted" type="hidden" value="false" />
-                                <label class="form-check-label" for="newColumnCompleted">Done</label>
-                            </div>
-                        </div>
-
                         <div class="col-md-2">
-                            <button type="submit" class="btn btn-primary w-100">
+                            <button type="submit"
+                                    class="btn btn-primary w-100">
                                 <i class="bi bi-plus-lg"></i> Add Column
                             </button>
                         </div>
@@ -154,323 +113,178 @@
     }
 
     <!-- Kanban Columns -->
-    @if (orderedColumns.Count == 0)
-    {
-        <div class="alert alert-info">
-            No columns are available on this board yet.
-        </div>
-    }
-    else
-    {
-        <div id="kanban-board"
-             class="kanban-board"
-             data-can-move="@(Model.CanMoveTasks ? "true" : "false")"
-             data-move-url="@Url.Action("Move", "Task")">
+    <div class="row g-3">
 
-            @for (var columnIndex = 0; columnIndex < orderedColumns.Count; columnIndex++)
+        @if (Model.Columns.Count == 0)
+        {
+            <div class="col-12">
+                <div class="alert alert-info">
+                    No columns are available on this board yet.
+                </div>
+            </div>
+        }
+        else
+        {
+            @foreach (var column in Model.Columns.OrderBy(c => c.Position))
             {
-                var column = orderedColumns[columnIndex];
-                var columnTasks = Model.TasksByColumn.TryGetValue(column.Id, out var tasks)
-                    ? tasks
-                    : Array.Empty<TaskFlow.Services.Tasks.Models.TaskListItem>();
-                var isAtOrOverWip = column.WipLimit.HasValue && columnTasks.Count >= column.WipLimit.Value;
+                <div class="col-12 col-md-6 col-xl-4">
 
-                <div class="kanban-lane" data-column-id="@column.Id" data-wip-limit="@column.WipLimit">
-                    <div class="card border-0 shadow-sm">
+                    <div class="card border-0 shadow-sm h-100">
 
                         <!-- Column Header -->
                         <div class="card-header bg-white border-bottom py-3">
-                            <div class="d-flex justify-content-between align-items-start gap-2">
+
+                            <div class="d-flex justify-content-between align-items-center">
+
                                 <div>
-                                    <div class="d-flex flex-wrap align-items-center gap-1 mb-1">
-                                        <h2 class="h5 fw-bold mb-0">@column.Name</h2>
+                                    <h5 class="fw-bold mb-1">
+                                        @column.Name
 
                                         @if (column.IsDefault)
                                         {
-                                            <span class="badge bg-secondary">Default</span>
+                                            <span class="badge bg-secondary">
+                                                Default
+                                            </span>
                                         }
 
                                         @if (column.IsCompleted)
                                         {
-                                            <span class="badge bg-success">Completed</span>
+                                            <span class="badge bg-success">
+                                                Completed
+                                            </span>
                                         }
-                                    </div>
+                                    </h5>
 
-                                    @if (!string.IsNullOrWhiteSpace(column.Description))
-                                    {
-                                        <small class="text-muted d-block">@column.Description</small>
-                                    }
+                                    <small class="text-muted">
+                                        @(column.Description ?? "No description")
+                                    </small>
                                 </div>
 
-                                <div class="d-flex align-items-center gap-1 flex-shrink-0">
-                                    @if (column.WipLimit.HasValue)
-                                    {
-                                        <span class="badge kanban-count-badge @(isAtOrOverWip ? "text-bg-danger" : "text-bg-secondary")">
-                                            @columnTasks.Count of @column.WipLimit.Value
-                                        </span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge text-bg-secondary kanban-count-badge">
-                                            @columnTasks.Count
-                                        </span>
-                                    }
-
-                                    <div class="dropdown">
-                                        <button class="btn btn-sm btn-outline-secondary border-0"
-                                                type="button"
-                                                data-bs-toggle="dropdown"
-                                                aria-expanded="false"
-                                                aria-label="Actions for @column.Name">
-                                            <i class="bi bi-three-dots-vertical"></i>
-                                        </button>
-
-                                        <ul class="dropdown-menu dropdown-menu-end">
-                                            <li>
-                                                <a class="dropdown-item"
-                                                   asp-controller="Task"
-                                                   asp-action="Index"
-                                                   asp-route-boardColumnId="@column.Id">
-                                                    <i class="bi bi-list-ul me-1"></i>
-                                                    List view
-                                                </a>
-                                            </li>
-
-                                            @if (Model.CanManage)
-                                            {
-                                                <li><hr class="dropdown-divider" /></li>
-
-                                                @if (columnIndex > 0)
-                                                {
-                                                    var moveLeftOrder = orderedColumns.Select(c => c.Id).ToList();
-                                                    (moveLeftOrder[columnIndex - 1], moveLeftOrder[columnIndex]) = (moveLeftOrder[columnIndex], moveLeftOrder[columnIndex - 1]);
-                                                    <li>
-                                                        <form asp-controller="Board"
-                                                              asp-action="ReorderColumns"
-                                                              asp-route-boardId="@Model.Id"
-                                                              method="post">
-                                                            @Html.AntiForgeryToken()
-                                                            @foreach (var id in moveLeftOrder)
-                                                            {
-                                                                <input type="hidden" name="orderedColumnIds" value="@id" />
-                                                            }
-                                                            <button type="submit" class="dropdown-item">
-                                                                <i class="bi bi-arrow-left me-1"></i>
-                                                                Move left
-                                                            </button>
-                                                        </form>
-                                                    </li>
-                                                }
-
-                                                @if (columnIndex < orderedColumns.Count - 1)
-                                                {
-                                                    var moveRightOrder = orderedColumns.Select(c => c.Id).ToList();
-                                                    (moveRightOrder[columnIndex], moveRightOrder[columnIndex + 1]) = (moveRightOrder[columnIndex + 1], moveRightOrder[columnIndex]);
-                                                    <li>
-                                                        <form asp-controller="Board"
-                                                              asp-action="ReorderColumns"
-                                                              asp-route-boardId="@Model.Id"
-                                                              method="post">
-                                                            @Html.AntiForgeryToken()
-                                                            @foreach (var id in moveRightOrder)
-                                                            {
-                                                                <input type="hidden" name="orderedColumnIds" value="@id" />
-                                                            }
-                                                            <button type="submit" class="dropdown-item">
-                                                                <i class="bi bi-arrow-right me-1"></i>
-                                                                Move right
-                                                            </button>
-                                                        </form>
-                                                    </li>
-                                                }
-
-                                                @if (!column.IsDefault && orderedColumns.Count > 1)
-                                                {
-                                                    <li><hr class="dropdown-divider" /></li>
-                                                    <li>
-                                                        <form asp-controller="Board"
-                                                              asp-action="DeleteColumn"
-                                                              method="post"
-                                                              onsubmit="return confirm('Delete this column? Columns with tasks cannot be deleted until tasks are moved.');">
-                                                            @Html.AntiForgeryToken()
-                                                            <input type="hidden" name="boardId" value="@Model.Id" />
-                                                            <input type="hidden" name="columnId" value="@column.Id" />
-                                                            <button type="submit" class="dropdown-item text-danger">
-                                                                <i class="bi bi-trash me-1"></i>
-                                                                Delete column
-                                                            </button>
-                                                        </form>
-                                                    </li>
-                                                }
-                                            }
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Tasks Area -->
-                        <div class="card-body bg-light">
-                            @if (Model.CanAddTask(column.Id))
-                            {
-                                <div class="d-flex justify-content-end mb-3">
-                                    <a asp-controller="Task"
-                                       asp-action="Create"
-                                       asp-route-boardColumnId="@column.Id"
-                                       class="btn btn-sm btn-primary">
-                                        <i class="bi bi-plus-lg"></i> Add Task
-                                    </a>
-                                </div>
-                            }
-
-                            <div class="kanban-empty-state text-center py-4 @(columnTasks.Count == 0 ? "" : "d-none")">
-                                <i class="bi bi-inbox display-6 text-muted"></i>
-                                <p class="text-muted mt-2 mb-0 small">
-                                    No tasks in this column yet.
-                                </p>
-                            </div>
-
-                            <div class="kanban-task-list d-flex flex-column gap-3"
-                                 data-column-id="@column.Id">
-                                @foreach (var task in columnTasks.OrderBy(t => t.Position))
+                                @if (column.WipLimit.HasValue)
                                 {
-                                    var isOverdue = !task.IsCompleted && task.DueDate.HasValue && task.DueDate.Value.Date < todayUtc;
-                                    var priorityBadgeClass = task.Priority switch
-                                    {
-                                        TaskPriority.Critical => "text-bg-danger",
-                                        TaskPriority.High => "text-bg-warning",
-                                        TaskPriority.Medium => "text-bg-secondary",
-                                        _ => "text-bg-light border text-dark"
-                                    };
-
-                                    <div class="card border shadow-sm kanban-card" data-task-id="@task.Id">
-                                        <div class="card-body p-3">
-
-                                            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-                                                <div class="d-flex align-items-start gap-2">
-                                                    @if (Model.CanMoveTasks)
-                                                    {
-                                                        <button type="button"
-                                                                class="btn btn-sm btn-link text-muted p-0 kanban-drag-handle"
-                                                                aria-label="Drag @task.Title">
-                                                            <i class="bi bi-grip-vertical"></i>
-                                                        </button>
-                                                    }
-
-                                                    <h3 class="h6 fw-semibold mb-0">
-                                                        <a asp-controller="Task"
-                                                           asp-action="Details"
-                                                           asp-route-id="@task.Id"
-                                                           class="text-decoration-none text-dark">
-                                                            @task.Title
-                                                        </a>
-                                                    </h3>
-                                                </div>
-
-                                                <span class="kanban-completed-icon @(task.IsCompleted ? "" : "d-none")"
-                                                      title="Completed">
-                                                    <i class="bi bi-check-circle-fill text-success" aria-hidden="true"></i>
-                                                    <span class="visually-hidden">Completed</span>
-                                                </span>
-                                            </div>
-
-                                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-                                                <span class="badge @priorityBadgeClass">
-                                                    @task.Priority
-                                                </span>
-
-                                                @if (task.Assignees.Count > 0)
-                                                {
-                                                    <div class="d-flex flex-wrap gap-1" aria-label="Assignees">
-                                                        @foreach (var assignee in task.Assignees)
-                                                        {
-                                                            <span class="rounded-circle bg-primary-subtle text-primary-emphasis border assignee-badge"
-                                                                  title="@assignee.DisplayName">
-                                                                @assignee.Initials
-                                                            </span>
-                                                        }
-                                                    </div>
-                                                }
-                                            </div>
-
-                                            @if (task.DueDate.HasValue)
-                                            {
-                                                <div class="small mb-2 @(isOverdue ? "text-danger fw-semibold" : "text-muted")">
-                                                    <i class="bi @(isOverdue ? "bi-calendar-x" : "bi-calendar-event") me-1"></i>
-                                                    @(isOverdue ? "Overdue: " : "Due: ")@task.DueDate.Value.ToShortDateString()
-                                                </div>
-                                            }
-
-                                            @if (Model.CanMoveTasks && orderedColumns.Count > 1)
-                                            {
-                                                <details class="mt-2">
-                                                    <summary class="small text-secondary" style="cursor:pointer">
-                                                        Move to
-                                                    </summary>
-
-                                                    <form asp-controller="Task"
-                                                          asp-action="MoveForm"
-                                                          method="post"
-                                                          class="d-flex gap-2 mt-2">
-                                                        @Html.AntiForgeryToken()
-
-                                                        <input type="hidden" name="BoardId" value="@Model.Id" />
-                                                        <input type="hidden" name="TaskId" value="@task.Id" />
-
-                                                        <select name="TargetColumnId"
-                                                                class="form-select form-select-sm"
-                                                                aria-label="Move @task.Title to column">
-                                                            @foreach (var targetCol in orderedColumns)
-                                                            {
-                                                                <option value="@targetCol.Id" selected="@(targetCol.Id == column.Id)">
-                                                                    @targetCol.Name
-                                                                </option>
-                                                            }
-                                                        </select>
-
-                                                        <button type="submit" class="btn btn-sm btn-outline-secondary">
-                                                            Move
-                                                        </button>
-                                                    </form>
-                                                </details>
-                                            }
-
-                                            @if (task.CanEdit)
-                                            {
-                                                <div class="d-flex gap-2 mt-3">
-                                                    <a asp-controller="Task"
-                                                       asp-action="Edit"
-                                                       asp-route-id="@task.Id"
-                                                       class="btn btn-sm btn-outline-primary">
-                                                        Edit
-                                                    </a>
-
-                                                    <form asp-controller="Task"
-                                                          asp-action="Archive"
-                                                          asp-route-id="@task.Id"
-                                                          method="post"
-                                                          onsubmit="return confirm('Archive this task?');">
-                                                        @Html.AntiForgeryToken()
-
-                                                        <button type="submit" class="btn btn-sm btn-outline-warning">
-                                                            Archive
-                                                        </button>
-                                                    </form>
-                                                </div>
-                                            }
-
-                                        </div>
-                                    </div>
+                                    <span class="badge bg-warning text-dark">
+                                        WIP: @column.WipLimit
+                                    </span>
                                 }
+
                             </div>
+
                         </div>
+
+                     <!-- Tasks Area -->
+<div class="card-body bg-light">
+
+    @{
+        var columnTasks = Model.TasksByColumn.TryGetValue(
+            column.Id,
+            out var tasks)
+            ? tasks
+            : Array.Empty<TaskFlow.Services.Tasks.Models.TaskListItem>();
+    }
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <span class="text-muted small">
+            @columnTasks.Count task(s)
+        </span>
+
+        @if (Model.CanAddTask(column.Id))
+        {
+            <a asp-controller="Task"
+               asp-action="Create"
+               asp-route-boardColumnId="@column.Id"
+               class="btn btn-sm btn-primary">
+                <i class="bi bi-plus-lg"></i> Add Task
+            </a>
+        }
+    </div>
+
+    @if (columnTasks.Count == 0)
+    {
+        <div class="text-center py-4">
+            <i class="bi bi-inbox display-5 text-muted"></i>
+            <p class="text-muted mt-2 mb-0">
+                No tasks in this column yet.
+            </p>
+        </div>
+    }
+    else
+    {
+        <div class="d-flex flex-column gap-3">
+            @foreach (var task in columnTasks.OrderBy(t => t.Position))
+            {
+                <div class="card border shadow-sm">
+                    <div class="card-body">
+
+                        <div class="d-flex justify-content-between align-items-start">
+                            <h6 class="fw-semibold mb-2">
+                                <a asp-controller="Task"
+                                   asp-action="Details"
+                                   asp-route-id="@task.Id"
+                                   class="text-decoration-none text-dark">
+                                    @task.Title
+                                </a>
+                            </h6>
+
+                            @if (task.IsCompleted)
+                            {
+                                <span class="badge bg-success">Completed</span>
+                            }
+                        </div>
+
+                        <div class="mb-2">
+                            <span class="badge bg-secondary">
+                                @task.Priority
+                            </span>
+                        </div>
+
+                        @if (task.DueDate.HasValue)
+                        {
+                            <small class="text-muted">
+                                <i class="bi bi-calendar-event"></i>
+                                Due: @task.DueDate.Value.ToShortDateString()
+                            </small>
+                        }
+
+                        @if (task.CanEdit)
+                        {
+                            <div class="d-flex gap-2 mt-3">
+                                <a asp-controller="Task"
+                                   asp-action="Edit"
+                                   asp-route-id="@task.Id"
+                                   class="btn btn-sm btn-outline-primary">
+                                    Edit
+                                </a>
+
+                                <form asp-controller="Task"
+                                      asp-action="Archive"
+                                      asp-route-id="@task.Id"
+                                      method="post">
+                                    @Html.AntiForgeryToken()
+
+                                    <button type="submit"
+                                            class="btn btn-sm btn-outline-warning">
+                                        Archive
+                                    </button>
+                                </form>
+                            </div>
+                        }
+
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+</div>
 
                         <!-- Edit Column -->
                         @if (Model.CanManage)
                         {
                             <div class="card-footer bg-white">
+
                                 <details>
-                                    <summary class="text-primary small" style="cursor:pointer">
+                                    <summary class="text-primary"
+                                             style="cursor:pointer">
                                         <i class="bi bi-pencil"></i>
                                         Edit Column
                                     </summary>
@@ -483,72 +297,84 @@
 
                                         @Html.AntiForgeryToken()
 
-                                        <input type="hidden" name="BoardId" value="@Model.Id" />
-                                        <input type="hidden" name="ColumnId" value="@column.Id" />
+                                        <input type="hidden"
+                                               name="BoardId"
+                                               value="@Model.Id" />
+
+                                        <input type="hidden"
+                                               name="ColumnId"
+                                               value="@column.Id" />
 
                                         <div class="mb-2">
-                                            <label class="form-label" for="col-name-@column.Id">Column Name</label>
-                                            <input id="col-name-@column.Id"
-                                                   name="Name"
+                                            <label class="form-label">
+                                                Column Name
+                                            </label>
+
+                                            <input name="Name"
                                                    value="@column.Name"
-                                                   class="form-control form-control-sm"
+                                                   class="form-control"
                                                    maxlength="100"
                                                    required />
                                         </div>
 
                                         <div class="mb-2">
-                                            <label class="form-label" for="col-desc-@column.Id">Description</label>
-                                            <input id="col-desc-@column.Id"
-                                                   name="Description"
+                                            <label class="form-label">
+                                                Description
+                                            </label>
+
+                                            <input name="Description"
                                                    value="@column.Description"
-                                                   class="form-control form-control-sm"
+                                                   class="form-control"
                                                    maxlength="500" />
                                         </div>
 
                                         <div class="mb-2">
-                                            <label class="form-label" for="col-wip-@column.Id">WIP Limit</label>
-                                            <input id="col-wip-@column.Id"
-                                                   name="WipLimit"
+                                            <label class="form-label">
+                                                WIP Limit
+                                            </label>
+
+                                            <input name="WipLimit"
                                                    type="number"
                                                    min="1"
                                                    value="@column.WipLimit"
-                                                   class="form-control form-control-sm" />
+                                                   class="form-control" />
                                         </div>
 
-                                        <div class="form-check mb-3">
-                                            <input id="col-done-@column.Id"
-                                                   name="IsCompleted"
-                                                   type="checkbox"
-                                                   value="true"
-                                                   class="form-check-input"
-                                                   checked="@column.IsCompleted" />
-                                            <input name="IsCompleted" type="hidden" value="false" />
-                                            <label class="form-check-label" for="col-done-@column.Id">
-                                                Completed column
-                                            </label>
-                                        </div>
+                                        <!-- Completed Column -->
+                                       <div class="form-check mb-3">
 
-                                        <button type="submit" class="btn btn-primary btn-sm">
+    <input name="IsCompleted"
+           type="checkbox"
+           value="true"
+           class="form-check-input"
+           checked="@column.IsCompleted" />
+
+    <input name="IsCompleted"
+           type="hidden"
+           value="false" />
+
+    <label class="form-check-label">
+        Completed column
+    </label>
+
+</div>
+
+                                        <button type="submit"
+                                                class="btn btn-primary btn-sm">
                                             Save Changes
                                         </button>
+
                                     </form>
                                 </details>
+
                             </div>
                         }
 
                     </div>
                 </div>
             }
+        }
 
-        </div>
-    }
+    </div>
 
 </div>
-
-@if (Model.CanMoveTasks)
-{
-    @section Scripts {
-        <script src="~/lib/sortablejs/Sortable.min.js" asp-append-version="true"></script>
-        <script src="~/js/kanban-board.js" asp-append-version="true"></script>
-    }
-}

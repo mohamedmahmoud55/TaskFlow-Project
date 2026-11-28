@@ -1,6 +1,5 @@
-﻿using Microsoft.Data.SqlClient;
+﻿
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 using TaskFlow.Data.Context;
 using TaskFlow.Data.Entities;
 using TaskFlow.Data.Enums;
@@ -13,10 +12,6 @@ namespace TaskFlow.Services.Tasks;
 public sealed class TaskService : ITaskService
 {
     private readonly ApplicationDbContext _dbContext;
-
-    // Allows integration tests to inject a deterministic unique-index race
-    // right before MoveTaskAsync or CreateTaskAsync saves.
-    internal Func<int, System.Threading.Tasks.Task>? BeforePositionSaveForTest { get; set; }
 
     public TaskService(ApplicationDbContext dbContext)
     {
@@ -69,11 +64,48 @@ public sealed class TaskService : ITaskService
                     .Any(project => project.Id == column.Board.ProjectId));
     }
 
-        var canAccess = await GetAccessibleProjects(userId)
+    // What the user may do in a project. Manage implies write and write
+    // implies read, so the checks stop as soon as the answer is known.
+    private readonly record struct ProjectPermissions(
+        bool CanRead,
+        bool CanWrite,
+        bool CanManage);
+
+    private async Task<ProjectPermissions> GetProjectPermissionsAsync(
+        Guid projectId,
+        string userId)
+    {
+        if (await GetManageableProjects(userId)
+                .AnyAsync(project => project.Id == projectId))
+        {
+            return new ProjectPermissions(true, true, true);
+        }
+
+        if (await GetWritableProjects(userId)
+                .AnyAsync(project => project.Id == projectId))
+        {
+            return new ProjectPermissions(true, true, false);
+        }
+
+        var canRead = await GetAccessibleProjects(userId)
             .AnyAsync(project => project.Id == projectId);
 
-        if (!canAccess)
-            return false;
+        return new ProjectPermissions(canRead, false, false);
+    }
+
+    // A task can be edited, archived or deleted by anyone who manages the
+    // project, or by its creator while that person can still contribute.
+    // A Viewer therefore cannot change even a task they created earlier.
+    // This is the only place that rule is written down: the checks that
+    // enforce it and the CanEdit flags shown in the UI both use it.
+    private static bool CanEditTask(
+        ProjectPermissions permissions,
+        string createdByUserId,
+        string userId)
+    {
+        return permissions.CanManage ||
+            (permissions.CanWrite && createdByUserId == userId);
+    }
 
     private async Task<bool> CanEditTaskAsync(
         TaskEntity task,
@@ -112,12 +144,16 @@ public sealed class TaskService : ITaskService
             return Array.Empty<TaskListItem>();
         }
 
-        if (!await CanAccessColumnAsync(boardColumnId, userId))
+        var permissions = await GetProjectPermissionsAsync(
+            projectId.Value,
+            userId);
+
+        if (!permissions.CanRead)
         {
             return Array.Empty<TaskListItem>();
         }
 
-        return await _dbContext.Tasks
+        var items = await _dbContext.Tasks
             .AsNoTracking()
             .Where(task =>
                 task.BoardColumnId == boardColumnId &&
@@ -131,41 +167,20 @@ public sealed class TaskService : ITaskService
                 DueDate = task.DueDate,
                 Position = task.Position,
                 IsCompleted = task.BoardColumn.IsCompleted,
-                IsArchived = task.IsArchived
+                IsArchived = task.IsArchived,
+                CreatedByUserId = task.CreatedByUserId
             })
             .ToListAsync();
-    }
 
-    private static TaskAssigneeBadge BuildAssigneeBadge(
-        string userId,
-        string? firstName,
-        string? lastName,
-        string? userName,
-        string? email)
-    {
-        var fullName = $"{firstName} {lastName}".Trim();
-        var displayName = !string.IsNullOrWhiteSpace(fullName)
-            ? fullName
-            : userName ?? email ?? userId;
-
-        string initials;
-        if (!string.IsNullOrWhiteSpace(firstName) && !string.IsNullOrWhiteSpace(lastName))
+        foreach (var item in items)
         {
-            initials = $"{char.ToUpperInvariant(firstName.Trim()[0])}{char.ToUpperInvariant(lastName.Trim()[0])}";
-        }
-        else if (!string.IsNullOrWhiteSpace(firstName))
-        {
-            initials = char.ToUpperInvariant(firstName.Trim()[0]).ToString();
-        }
-        else
-        {
-            var source = (email ?? userName ?? userId).Trim();
-            initials = source.Length >= 2
-                ? source[..2].ToUpperInvariant()
-                : source.ToUpperInvariant();
+            item.CanEdit = CanEditTask(
+                permissions,
+                item.CreatedByUserId,
+                userId);
         }
 
-        return new TaskAssigneeBadge(userId, displayName, initials);
+        return items;
     }
 
     // ---------------------------------------------------------
@@ -201,9 +216,9 @@ public sealed class TaskService : ITaskService
 
         var details = await query
             .Select(task => new TaskDetails
-            {
+               {
                 Id = task.Id,
-
+              
                 BoardColumnId = task.BoardColumnId,
                 BoardId = task.BoardColumn.BoardId,
                 ProjectId = task.BoardColumn.Board.ProjectId,
@@ -224,6 +239,22 @@ public sealed class TaskService : ITaskService
                 IsCompleted = task.BoardColumn.IsCompleted
             })
             .SingleOrDefaultAsync();
+
+        if (details is null)
+        {
+            return null;
+        }
+
+        var permissions = await GetProjectPermissionsAsync(
+            details.ProjectId,
+            userId);
+
+        details.CanEdit = CanEditTask(
+            permissions,
+            details.CreatedByUserId,
+            userId);
+
+        return details;
     }
 
     // ---------------------------------------------------------
@@ -322,90 +353,50 @@ public sealed class TaskService : ITaskService
         if (!await CanAccessColumnAsync(boardColumnId, userId))
         {
             return TaskCreationResult.Failure(
-                "Task description cannot exceed 5000 characters.");
-        }
-
-        if (startDate.HasValue &&
-            dueDate.HasValue &&
-            dueDate.Value < startDate.Value)
-        {
-            return TaskCreationResult.Failure(
-                "Due date cannot be earlier than start date.");
-        }
-
-        if (estimatedMinutes.HasValue &&
-            estimatedMinutes.Value <= 0)
-        {
-            return TaskCreationResult.Failure(
-                "Estimated minutes must be greater than zero.");
-        }
-
-        if (!Enum.IsDefined(priority))
-        {
-            return TaskCreationResult.Failure(
-                "Invalid task priority.");
-        }
-
-        if (!await CanAccessColumnAsync(boardColumnId, userId))
-        {
-            return TaskCreationResult.Failure(
                 "The column could not be found or you do not have access to it.");
         }
 
-            var nextPosition = await _dbContext.Tasks
-                .Where(task => task.BoardColumnId == boardColumnId)
-                .Select(task => (int?)task.Position)
-                .MaxAsync() ?? -1;
-
-            var now = DateTime.UtcNow;
-
-            var task = new TaskEntity
-            {
-                BoardColumnId = boardColumnId,
-                CreatedByUserId = userId,
-                Title = trimmedTitle,
-                Description = normalizedDescription,
-                Priority = priority,
-                StartDate = startDate,
-                DueDate = dueDate,
-                EstimatedMinutes = estimatedMinutes,
-                Position = nextPosition + 1,
-                CreatedAt = now,
-                CompletedAt = column.IsCompleted ? now : null,
-                IsArchived = false
-            };
-
-            _dbContext.Tasks.Add(task);
-
-            try
-            {
-                if (BeforePositionSaveForTest is not null)
-                {
-                    await BeforePositionSaveForTest(attempt);
-                }
-
-                await _dbContext.SaveChangesAsync();
-
-                return TaskCreationResult.Success(task.Id);
-            }
-            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex) && attempt == 0)
-            {
-                _dbContext.ChangeTracker.Clear();
-            }
-            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
-            {
-                return TaskCreationResult.Failure(
-                    "The board changed, please try again.");
-            }
-            catch (DbUpdateException)
-            {
-                return TaskCreationResult.Failure(
-                    "The task could not be created. Please try again.");
-            }
+        if (!await CanWriteColumnAsync(boardColumnId, userId))
+        {
+            return TaskCreationResult.Failure(
+                "You have view-only access to this project, so you cannot add tasks to it.");
         }
 
-        return TaskCreationResult.Failure(
-            "The board changed, please try again.");
+        var nextPosition = await _dbContext.Tasks
+            .Where(task => task.BoardColumnId == boardColumnId)
+            .Select(task => (int?)task.Position)
+            .MaxAsync() ?? -1;
+
+        var now = DateTime.UtcNow;
+
+        var task = new TaskEntity
+        {
+            BoardColumnId = boardColumnId,
+            CreatedByUserId = userId,
+            Title = trimmedTitle,
+            Description = normalizedDescription,
+            Priority = priority,
+            StartDate = startDate,
+            DueDate = dueDate,
+            EstimatedMinutes = estimatedMinutes,
+            Position = nextPosition + 1,
+            CreatedAt = now,
+            IsArchived = false
+        };
+
+        _dbContext.Tasks.Add(task);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+
+            return TaskCreationResult.Success(task.Id);
+        }
+        catch (DbUpdateException)
+        {
+            return TaskCreationResult.Failure(
+                "The task could not be created. Please try again.");
+        }
     }
 
     // ---------------------------------------------------------
@@ -451,24 +442,23 @@ public sealed class TaskService : ITaskService
             return TaskUpdateResult.NotFound();
         }
 
-        var normalizedDescription =
-            string.IsNullOrWhiteSpace(description)
-                ? null
-                : description.Trim();
+        if (!await CanEditTaskAsync(task, userId))
+        {
+            return TaskUpdateResult.Forbidden(
+                "You do not have permission to edit this task.");
+        }
 
-        if (normalizedDescription?.Length > 5000)
-            return false;
+        var validationError = ValidateTaskInput(
+            title,
+            description,
+            priority,
+            startDate,
+            dueDate,
+            estimatedMinutes,
+            out var trimmedTitle,
+            out var normalizedDescription);
 
-        var task = await _dbContext.Tasks
-            .Include(task => task.BoardColumn)
-                .ThenInclude(column => column.Board)
-            .SingleOrDefaultAsync(task =>
-                task.Id == taskId &&
-                !task.IsArchived &&
-                !task.BoardColumn.Board.IsArchived);
-
-        if (task is null ||
-            !await CanManageTaskAsync(task, userId))
+        if (validationError is not null)
         {
             return TaskUpdateResult.Invalid(validationError);
         }
@@ -484,11 +474,12 @@ public sealed class TaskService : ITaskService
         try
         {
             await _dbContext.SaveChangesAsync();
-            return true;
+            return TaskUpdateResult.Success();
         }
         catch (DbUpdateException)
         {
-            return false;
+            return TaskUpdateResult.Failed(
+                "The task could not be saved. Please try again.");
         }
     }
 
@@ -535,7 +526,7 @@ public sealed class TaskService : ITaskService
     }
 
     // ---------------------------------------------------------
-    // Delete task (Managers and workspace admins only)
+    // Delete task
     // ---------------------------------------------------------
 
     public async Task<bool> DeleteTaskAsync(
@@ -555,7 +546,7 @@ public sealed class TaskService : ITaskService
                 task.Id == taskId);
 
         if (task is null ||
-            !await CanManageTaskAsync(task, userId))
+            !await CanEditTaskAsync(task, userId))
         {
             return false;
         }

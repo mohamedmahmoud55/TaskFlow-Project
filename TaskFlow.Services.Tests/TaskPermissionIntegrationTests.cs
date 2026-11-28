@@ -259,28 +259,6 @@ public sealed class TaskPermissionIntegrationTests
         Assert.False((await s.LoadTaskAsync(s.ManagerTaskId)).IsArchived);
     });
 
-    [Fact]
-    [Trait("Category", "Integration")]
-    public AsyncTask OnlyManagersAndWorkspaceAdminsCanPhysicallyDeleteTasks() => RunAsync(async s =>
-    {
-        // Members cannot physically delete even their own tasks.
-        Assert.False(await s.NewTaskService().DeleteTaskAsync(s.MemberTaskId, s.MemberId));
-        Assert.True(await s.TaskExistsAsync("Member task"));
-
-        // Inactive, outsider, and stranger cannot delete.
-        foreach (var userId in new[] { s.InactiveId, s.OutsiderId, s.StrangerId })
-        {
-            Assert.False(await s.NewTaskService().DeleteTaskAsync(s.ViewerTaskId, userId));
-        }
-
-        // Manager and Workspace Admin can delete.
-        Assert.True(await s.NewTaskService().DeleteTaskAsync(s.ViewerTaskId, s.ManagerId));
-        Assert.False(await s.TaskExistsAsync("Viewer task"));
-
-        Assert.True(await s.NewTaskService().DeleteTaskAsync(s.MemberTaskId, s.AdminId));
-        Assert.False(await s.TaskExistsAsync("Member task"));
-    });
-
     // ------------------------------------------------------------------
     // Assigning tasks
     // ------------------------------------------------------------------

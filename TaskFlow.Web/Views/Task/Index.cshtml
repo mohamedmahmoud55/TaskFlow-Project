@@ -1,32 +1,35 @@
 ﻿@model TaskFlow.Web.Models.Tasks.TaskListViewModel
 
 @{
-    ViewData["Title"] = string.IsNullOrWhiteSpace(Model.ColumnName) ? "Tasks" : $"{Model.ColumnName} - Tasks";
+    ViewData["Title"] = "Tasks";
 }
 
 <div class="container mt-4">
+    @await Component.InvokeAsync("Breadcrumbs", new { boardColumnId = Model.BoardColumnId, current = "Tasks" })
+
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Tasks</h2>
-        <a asp-action="Create"
-           asp-route-boardColumnId="@Context.Request.Query["boardColumnId"]"
-           class="btn btn-primary">
-            <i class="bi bi-plus-lg"></i> Create Task
-        </a>
+        @if (Model.CanCreateTasks)
+        {
+            <a asp-action="Create"
+               asp-route-boardColumnId="@Model.BoardColumnId"
+               class="btn btn-primary">
+                <i class="bi bi-plus-lg"></i> Create Task
+            </a>
+        }
     </div>
 
-    @if (TempData["Success"] is not null)
+    @if (TempData["SuccessMessage"] != null)
     {
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            @TempData["Success"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="alert alert-success">
+            @TempData["SuccessMessage"]
         </div>
     }
 
-    @if (TempData["Error"] is not null)
+    @if (TempData["ErrorMessage"] != null)
     {
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            @TempData["Error"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="alert alert-danger">
+            @TempData["ErrorMessage"]
         </div>
     }
 
@@ -42,15 +45,15 @@
             @foreach (var task in Model.Tasks)
             {
                 <div class="list-group-item">
-                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h2 class="h5 mb-1">
+                            <h5 class="mb-1">
                                 <a asp-action="Details"
                                    asp-route-id="@task.Id"
                                    class="text-decoration-none">
                                     @task.Title
                                 </a>
-                            </h2>
+                            </h5>
 
                             <small class="text-muted">
                                 Priority: @task.Priority
@@ -77,14 +80,15 @@
                                     Edit
                                 </a>
 
-                            <form asp-action="Archive"
-                                  asp-route-id="@task.Id"
-                                  method="post">
-                                <button type="submit"
-                                        class="btn btn-sm btn-outline-warning">
-                                    Archive
-                                </button>
-                            </form>
+                                <form asp-action="Archive"
+                                      asp-route-id="@task.Id"
+                                      method="post">
+                                    <button type="submit"
+                                            class="btn btn-sm btn-outline-warning">
+                                        Archive
+                                    </button>
+                                </form>
+                            }
                         </div>
                     </div>
                 </div>

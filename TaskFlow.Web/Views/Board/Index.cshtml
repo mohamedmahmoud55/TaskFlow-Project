@@ -1,112 +1,66 @@
 ﻿@model TaskFlow.Web.Models.Boards.BoardListViewModel
 
 @{
-    var title = Model.ShowingArchived ? "Archived Boards" : "Boards";
-    ViewData["Title"] = title;
+    ViewData["Title"] = "Boards";
 }
 
 <div class="container py-4">
 
+    @await Component.InvokeAsync("Breadcrumbs", new { projectId = Model.ProjectId, current = "Boards" })
+
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1 class="h2 fw-bold mb-1">@title</h1>
+            <h2 class="fw-bold">Boards</h2>
             <p class="text-muted mb-0">
                 Project: @Model.ProjectName
             </p>
         </div>
 
-        <div class="d-flex flex-wrap align-items-center gap-3">
-            @if (Model.CanManage)
-            {
-                <ul class="nav nav-pills">
-                    <li class="nav-item">
-                        <a class="nav-link @(Model.ShowingArchived ? "" : "active")"
-                           asp-controller="Board"
-                           asp-action="Index"
-                           asp-route-projectId="@Model.ProjectId"
-                           asp-route-teamId="@Model.TeamId"
-                           asp-route-archived="false">Active</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link @(Model.ShowingArchived ? "active" : "")"
-                           asp-controller="Board"
-                           asp-action="Index"
-                           asp-route-projectId="@Model.ProjectId"
-                           asp-route-teamId="@Model.TeamId"
-                           asp-route-archived="true">Archived</a>
-                    </li>
-                </ul>
-
-                @if (!Model.ShowingArchived)
-                {
-                    <a asp-controller="Board"
-                       asp-action="Create"
-                       asp-route-projectId="@Model.ProjectId"
-                       asp-route-teamId="@Model.TeamId"
-                       class="btn btn-primary">
-                        <i class="bi bi-plus-lg"></i> Create Board
-                    </a>
-                }
-            }
-        </div>
+        <a asp-controller="Board"
+           asp-action="Create"
+           asp-route-projectId="@Model.ProjectId"
+           asp-route-teamId="@Model.TeamId"
+           class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Create Board
+        </a>
     </div>
 
-    @if (TempData["Success"] is not null)
+    @if (TempData["SuccessMessage"] is not null)
     {
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            @TempData["Success"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="alert alert-success">
+            @TempData["SuccessMessage"]
         </div>
     }
 
-    @if (TempData["Error"] is not null)
+    @if (TempData["ErrorMessage"] is not null)
     {
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            @TempData["Error"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="alert alert-danger">
+            @TempData["ErrorMessage"]
         </div>
     }
 
     @if (Model.Boards.Count == 0)
     {
         <div class="card border-0 shadow-sm text-center p-5">
-            @if (Model.ShowingArchived)
-            {
-                <div class="mb-3">
-                    <i class="bi bi-archive display-4 text-muted"></i>
-                </div>
-                <h4>No archived boards</h4>
-                <p class="text-muted mb-0">
-                    Boards you archive will appear here so managers can restore them.
-                </p>
-            }
-            else
-            {
-                <div class="mb-3">
-                    <i class="bi bi-kanban display-3 text-primary"></i>
-                </div>
+            <div class="mb-3">
+                <i class="bi bi-kanban display-3 text-primary"></i>
+            </div>
 
-                <h4>No boards yet</h4>
+            <h4>No boards yet</h4>
 
-                <p class="text-muted">
-                    @(Model.CanManage
-                        ? "Create your first board to start organizing project tasks."
-                        : "No boards have been created for this project yet.")
-                </p>
+            <p class="text-muted">
+                Create your first board to start organizing project tasks.
+            </p>
 
-                @if (Model.CanManage)
-                {
-                    <div>
-                        <a asp-controller="Board"
-                           asp-action="Create"
-                           asp-route-projectId="@Model.ProjectId"
-                           asp-route-teamId="@Model.TeamId"
-                           class="btn btn-primary">
-                            Create your first board
-                        </a>
-                    </div>
-                }
-            }
+            <div>
+                <a asp-controller="Board"
+                   asp-action="Create"
+                   asp-route-projectId="@Model.ProjectId"
+                   asp-route-teamId="@Model.TeamId"
+                   class="btn btn-primary">
+                    Create your first board
+                </a>
+            </div>
         </div>
     }
     else
@@ -118,7 +72,7 @@
                 <div class="col-md-6 col-lg-4">
                     <div class="card h-100 shadow-sm border-0">
 
-                        <div class="card-body d-flex flex-column">
+                        <div class="card-body">
 
                             <div class="d-flex justify-content-between align-items-start mb-3">
                                 <h5 class="fw-bold mb-0">
@@ -133,7 +87,7 @@
                                 }
                             </div>
 
-                            <p class="text-muted flex-grow-1">
+                            <p class="text-muted">
                                 @(string.IsNullOrWhiteSpace(board.Description)
                                     ? "No description provided."
                                     : board.Description)
@@ -150,46 +104,13 @@
                                 </span>
                             </div>
 
-                            @if (Model.ShowingArchived)
-                            {
-                                <form asp-controller="Board"
-                                      asp-action="Restore"
-                                      method="post">
-                                    @Html.AntiForgeryToken()
-
-                                    <input type="hidden" name="BoardId" value="@board.Id" />
-                                    <input type="hidden" name="ProjectId" value="@Model.ProjectId" />
-
-                                    <button type="submit" class="btn btn-outline-primary w-100">
-                                        <i class="bi bi-arrow-counterclockwise me-1"></i>
-                                        Restore Board
-                                    </button>
-                                </form>
-                            }
-                            else
-                            {
-                                <div class="d-flex gap-2">
-                                    <a asp-controller="Board"
-                                       asp-action="Details"
-                                       asp-route-id="@board.Id"
-                                       asp-route-projectId="@Model.ProjectId"
-                                       class="btn btn-outline-primary flex-grow-1">
-                                        Open Board
-                                    </a>
-
-                                    @if (Model.CanManage)
-                                    {
-                                        <a asp-controller="Board"
-                                           asp-action="Edit"
-                                           asp-route-id="@board.Id"
-                                           asp-route-projectId="@Model.ProjectId"
-                                           class="btn btn-outline-secondary"
-                                           aria-label="Edit @board.Name">
-                                            <i class="bi bi-pencil"></i>
-                                        </a>
-                                    }
-                                </div>
-                            }
+                            <a asp-controller="Board"
+                               asp-action="Details"
+                               asp-route-id="@board.Id"
+                               asp-route-projectId="@Model.ProjectId"
+                               class="btn btn-outline-primary w-100">
+                                Open Board
+                            </a>
 
                         </div>
                     </div>

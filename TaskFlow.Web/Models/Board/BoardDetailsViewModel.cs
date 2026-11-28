@@ -21,13 +21,14 @@ public class BoardDetailsViewModel
 
     public bool CanManage { get; set; }
 
-    // Write access (Manager, Member, Workspace Owner/Admin) allows creating
-    // and moving tasks across columns; Viewers cannot.
-    public bool CanMoveTasks { get; set; }
-
     public IReadOnlyList<BoardColumnItem> Columns { get; set; }
         = Array.Empty<BoardColumnItem>();
 
     public Dictionary<Guid, IReadOnlyList<TaskListItem>> TasksByColumn { get; set; }
         = new();
+
+    // The columns the current user may add tasks to.
+    public HashSet<Guid> ColumnsOpenToNewTasks { get; set; } = new();
+
+    public bool CanAddTask(Guid columnId) => ColumnsOpenToNewTasks.Contains(columnId);
 }
